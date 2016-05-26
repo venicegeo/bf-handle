@@ -77,15 +77,18 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	if err != nil{
 		fmt.Println("Error: bf-handle provisioning: " + err.Error())
 	}
-fmt.Println ("running Algo")	
+	fmt.Println ("running Algo")	
 	resDataID, err := runAlgo(algoType, algoURL, dataIDs)
 	if err != nil{
 		fmt.Println("Error: algo result: " + err.Error())
 	}
 	
-fmt.Println (`updating Data ( dataId = ` + resDataID + `)`)	
-	updateData (resDataID, pzAddr, pzAuth, metaJSON)
-fmt.Println ("outputting")	
+	fmt.Println (`updating Data ( dataId = ` + resDataID + `)`)	
+	err = updateData (resDataID, pzAddr, pzAuth, metaJSON)
+	if err != nil{
+		fmt.Println("Error: bf-handle update data: " + err.Error())
+	}	
+	fmt.Println ("outputting")	
 	fmt.Fprintf(w, resDataID)
 }
 
@@ -156,9 +159,9 @@ func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
 	formVal.Set("cmd", funcStr)
 	formVal.Set("inFiles", inStr)
 	formVal.Set("outGeoJson", geoJName)
-fmt.Println(funcStr)
-fmt.Println(inStr)
-fmt.Println(geoJName)
+	fmt.Println(funcStr)
+	fmt.Println(inStr)
+	fmt.Println(geoJName)
 	resp, err := http.PostForm(algoURL, formVal)
 	if err != nil {
 		return "", err
@@ -205,26 +208,16 @@ func updateData(dataID, pzAddr, pzAuth, featJSON string) error {
 	attMap["sourceID"] = feature.ID // covers source and ID in that source
 	attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
 	attMap["sensorName"] = feature.PropertyString("sensorName")
-	pzsvc.UpdateFileMeta(dataID, pzAddr, pzAuth, attMap)
+	
+	err = pzsvc.UpdateFileMeta(dataID, pzAddr, pzAuth, attMap)
+	if err != nil {
+		return err
+	}
 	
 	return nil
-	
-	
 /*
-
-desired things to pass over
-*SRC_ID (int or string)
-*SRC_COLLECTION_PLATFORM (string)
-*SRC_DATE_TIME_COLLECT (ISO-8601 string)
-SRC_RESOLUTION (float)
-CV_ALGORITHM_NAME (string)
-ALGORITHM_VERSION (string)
-DATE_TIME_EXTRACT (ISO-8601 string)
-*CLASSIFICATION (string)
-
-pzsvc-exec handles classification, algoName, algoVersion, and Date/Time extract.
-Source Resolution not currently available.  Talk with Jeff?
-
+TODO: still want to pass over SRC_RESOLUTION (float)
+currently don't knwo where to get it.  Talk with Jeff?
 */
 
 }
