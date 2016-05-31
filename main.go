@@ -31,13 +31,9 @@ import (
 
 /*
 Various TODOs:
-- handle arbitrary attributes properly
 - clean/refactor
 - put in at least a few more comments
-- fix the auth stuff
 - improve error handling (currently *very* rudimentary)
-* implement updateData
-
 */
 
 func main() {
@@ -108,21 +104,19 @@ func provision(metaDataJSON, dbAuth, pzAuth, pzAddr string, bands []string) ( []
 	fSource := metaDataFeature.PropertyString("sensorName")
 
 	for i, band := range bands {
-
+		
 		reader, err := catalog.ImageFeatureIOReader(metaDataFeature, band, dbAuth)
 		if err != nil {
 			return nil, err
 		}
 
-		fName := fmt.Sprintf("%s-%s.TIF", fSource, band)
-		
+		fName := fmt.Sprintf("%s-%s.TIF", fSource, band)	
 		dataID, err := pzsvc.IngestTiffReader(fName, pzAddr, fSource, "", pzAuth, reader, nil)
 		if err != nil {
 			return nil, err
 		}
 		dataIDs[i] = dataID
 	}
-	
 	return dataIDs, nil
 }
 
@@ -135,8 +129,10 @@ func runAlgo( algoType, algoURL string, dataIDs []string) (string, error) {
 	}
 }
 
+// runOssim does all of the things necessary to process the given images
+// through pzsvc-ossim.  It constructs and executes the request, reads
+// the response, and extracts the dataID of the output from it.
 func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
-	
 	type execStruct struct {
 		InFiles		map[string]string
 		OutFiles	map[string]string
@@ -146,10 +142,7 @@ func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
 	
 	imgName1 := (imgID1 + ".TIF")
 	imgName2 := (imgID2 + ".TIF")
-	//imgName1 := (imgID1 + ".")
-	//imgName2 := (imgID2 + ".")
 	geoJName := "shoreline.geojson"
-	
 	funcStr := fmt.Sprintf(`shoreline --image %s,%s --projection geo-scaled --threshold 0.5 --tolerance 0 %s`,
 							imgName1, imgName2, geoJName)
 	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
@@ -168,7 +161,6 @@ func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
 	}
 	
 	respBuf := &bytes.Buffer{}
-
 	_, err = respBuf.ReadFrom(resp.Body)
 	if err != nil {
 		return "", err
@@ -189,6 +181,10 @@ func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
 	return outDataID, nil
 }
 
+// updateData modifies the S3 metadata of the given file.  Specifically, it
+// adds information on the image source - what external source it was drawn
+// from, the image ID at that source, the date/time of image collection, and
+// the name of the sensor that did the collecting.
 func updateData(dataID, pzAddr, pzAuth, featJSON string) error {
 	dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
 	if err != nil {
@@ -208,7 +204,6 @@ func updateData(dataID, pzAddr, pzAuth, featJSON string) error {
 	attMap["sourceID"] = feature.ID // covers source and ID in that source
 	attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
 	attMap["sensorName"] = feature.PropertyString("sensorName")
-	
 	err = pzsvc.UpdateFileMeta(dataID, pzAddr, pzAuth, attMap)
 	if err != nil {
 		return err
