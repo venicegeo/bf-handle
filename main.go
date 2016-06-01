@@ -49,7 +49,12 @@ func main() {
 		}
 	})
 	
-	log.Fatal(http.ListenAndServe(":8085", nil))
+	portStr := ":8085"
+	portEnv := os.Getenv("PORT")
+	if portEnv != "" {
+		portStr = fmt.Sprintf("%s:", portEnv)
+	}	
+	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
 func proc (w http.ResponseWriter, r *http.Request) {
