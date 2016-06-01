@@ -52,7 +52,7 @@ func main() {
 	portStr := ":8085"
 	portEnv := os.Getenv("PORT")
 	if portEnv != "" {
-		portStr = fmt.Sprintf("%s:", portEnv)
+		portStr = fmt.Sprintf(":%s", portEnv)
 	}	
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
