@@ -7,6 +7,3 @@ applications:
   disk_quota: 2G
   instances: 1
   timeout: 180
-  env:
-    LD_LIBRARY_PATH: "/home/vcap/app/install/lib"
-    PATH: "$PATH:/bin:/usr/bin:/home/vcap/app/install/bin:/home/vcap/app/install/lib"
