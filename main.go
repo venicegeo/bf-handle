@@ -76,20 +76,20 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	
 	dataIDs, err := provision(metaJSON, dbAuth, pzAuth, pzAddr, bands)
 	if err != nil{
-		fmt.Println("Error: bf-handle provisioning: " + err.Error())
+		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 	}
 	fmt.Println ("running Algo")	
 	resDataID, err := runAlgo(algoType, algoURL, dataIDs)
 	if err != nil{
-		fmt.Println("Error: algo result: " + err.Error())
+		fmt.Fprintln(w, "Error: algo result: " + err.Error())
 	}
 	
 	fmt.Println (`updating Data ( dataId = ` + resDataID + `)`)	
 	err = updateData (resDataID, pzAddr, pzAuth, metaJSON)
 	if err != nil{
-		fmt.Println("Error: bf-handle update data: " + err.Error())
+		fmt.Fprintln(w, "Error: bf-handle update data: " + err.Error())
 	}	
-	fmt.Println ("outputting")	
+	fmt.Println ("outputting")
 	fmt.Fprintf(w, resDataID)
 }
 
