@@ -18,11 +18,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	//"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	//"strings"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -69,35 +71,66 @@ func main() {
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
+type inpStruct struct {
+	AlgoType	string			`json:"algoType"`
+	AlgoURL		string			`json:"svcURL"`
+	MetaJSON	geojson.Feature	`json:"metaDataJSON"`
+	Bands		[]string		`json:"bands"`
+	PzAuth		string			`json:"pzAuthToken"`
+	PzAddr		string			`json:"pzAddr"`
+	DbAuth		string			`json:"dbAuthToken"`
+}
+
 func proc (w http.ResponseWriter, r *http.Request) {
-	algoType := r.FormValue("algoType")
-	algoURL := r.FormValue("svcURL")
-	metaJSON := r.FormValue("metaDataJSON")
-	bands := strings.Split(r.FormValue("bands"), ",")
-	pzAuth := r.FormValue("pzAuthToken")
-	pzAddr := r.FormValue("pzAddr")
-	dbAuth := r.FormValue("dbAuthToken")
-	
-	if pzAuth == "" {
-		pzAuth = os.Getenv("PZ_AUTH")
+	var inpObj inpStruct
+	inpBytes, err := ioutil.ReadAll(r.Body)
+/*	if inpString == "" {
+		inpObj.AlgoType = r.FormValue("algoType")
+		inpObj.AlgoURL = r.FormValue("svcURL")
+		bandSlice := strings.Split(r.FormValue("bands"), ",")
+		inpObj.Bands = make([]string, len(bandSlice))
+		copy(inpObj.Bands, bandSlice)
+		inpObj.PzAuth = r.FormValue("pzAuthToken")
+		inpObj.PzAddr = r.FormValue("pzAddr")
+		inpObj.DbAuth = r.FormValue("dbAuthToken")
+		inpObj.MetaJSON, err = geojson.FeatureFromBytes([]byte(r.FormValue("metaDataJSON")))
+		if err != nil {
+			fmt.Fprintln(w, "Error: geojson.FeatureFromBytes: " + err.Error())
+		}
+	} else {*/
+	err = json.Unmarshal(inpBytes, &inpObj)
+	if err != nil {
+		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
 	}
 	
-	if dbAuth == "" {
-		dbAuth = os.Getenv("DB_AUTH")
+	(&inpObj.MetaJSON).ResolveGeometry()
+	//}
+
+afterB, err := json.Marshal(&inpObj)
+fmt.Println(string(afterB))
+	
+	
+	
+	if inpObj.PzAuth == "" {
+		inpObj.PzAuth = os.Getenv("PZ_AUTH")
 	}
 	
-	dataIDs, err := provision(metaJSON, dbAuth, pzAuth, pzAddr, bands)
+	if inpObj.DbAuth == "" {
+		inpObj.DbAuth = os.Getenv("DB_AUTH")
+	}
+	
+	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 	}
 	fmt.Println ("running Algo")	
-	resDataID, err := runAlgo(algoType, algoURL, dataIDs)
+	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, dataIDs)
 	if err != nil{
 		fmt.Fprintln(w, "Error: algo result: " + err.Error())
 	}
 	
 	fmt.Println (`updating Data ( dataId = ` + resDataID + `)`)	
-	err = updateData (resDataID, pzAddr, pzAuth, metaJSON)
+	err = updateData (resDataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle update data: " + err.Error())
 	}	
@@ -109,14 +142,9 @@ func proc (w http.ResponseWriter, r *http.Request) {
 // download the images from that image set associated with the given bands, upload them to
 // the S3 bucket in Pz, and return the dataIds as a string slice, maintaining the order from the
 // band string slice.
-func provision(metaDataJSON, dbAuth, pzAuth, pzAddr string, bands []string) ( []string, error ) {
+func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, bands []string) ( []string, error ) {
 	
 	dataIDs := make([]string, len(bands))
-	
-	metaDataFeature, err := geojson.FeatureFromBytes( []byte(metaDataJSON) )
-	if err != nil {
-		return nil, err
-	}
 
 	fSource := metaDataFeature.PropertyString("sensorName")
 
@@ -202,7 +230,7 @@ func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
 // adds information on the image source - what external source it was drawn
 // from, the image ID at that source, the date/time of image collection, and
 // the name of the sensor that did the collecting.
-func updateData(dataID, pzAddr, pzAuth, featJSON string) error {
+func updateData(dataID, pzAddr, pzAuth string, feature *geojson.Feature) error {
 	dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
 	if err != nil {
 		return err
@@ -211,11 +239,6 @@ func updateData(dataID, pzAddr, pzAuth, featJSON string) error {
 	attMap := make(map[string]string)
 	for key, val := range dataRes.Metadata.Metadata {
 		attMap[key] = val
-	}
-	
-	feature, err := geojson.FeatureFromBytes([]byte(featJSON))
-	if err != nil {
-		return err
 	}
 	
 	attMap["sourceID"] = feature.ID // covers source and ID in that source
