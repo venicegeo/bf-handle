@@ -4,7 +4,7 @@
 
 ## Installing and Running
 
-bf-handle is relatively straightforward.  It can be installed via go install.  When run from the command line with further parameters, it will begin to serve at localhost:8085.  If you wish to provide an auth token for piazza, it should be at the environment variable PZ_AUTH.  If you wish to provide an auth token for external database access, it should be at the environment variable DB_AUTH
+bf-handle is relatively straightforward.  It can be installed via go install.  When run from the command line without further parameters, it will begin to serve from the local host.  If the BFH_PORT environment variable is specified, it will use that.  Otherwise it will default to 8085.  If you wish to provide an auth token for piazza, it should be at the environment variable BFH_PZ_AUTH.  If you wish to provide an auth token for external database access, it should be at the environment variable BFH_DB_AUTH.
 
 bf-handle does not currently have an autoregistration feature.  To register the service to Piazza, please see appropriate piazza documentation.
 
@@ -20,10 +20,10 @@ bf-handle accepts POST calls set up in x-www-form-urlencoded format, with the fo
 
 "bands": a comma-separated list (no spaces) of band names for the frequency ranges you want to include.  Reference only as many bands as you wish fed into the algorithm.  Band names can be drawn from the list of available bands listed in the "metaDataJSON" field
 
-"pzAuthToken": Overrides the authorization token for Piazza access.  If not provided, will default to the contents of PZ_AUTH (if any)
+"pzAuthToken": Overrides the authorization token for Piazza access.  If not provided, will default to the contents of BFH_PZ_AUTH (if any)
 
 "pzAddr": the address of the local piazza instance.  Necessary for things like ingesting image files and updating response metadata 
 
-"dbAuthToken": Overrides the authorization token for external database access.  If not provided, will default to the contents of DB_AUTH (if any)
+"dbAuthToken": Overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any)
 
 bf-handle responds with a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, with a few additional pieces of metadata, noting when the source images were collected, what sensor platform collected them, what database the images were sourced from, and what the image ID was in that database.

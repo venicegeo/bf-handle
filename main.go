@@ -18,13 +18,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	//"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	//"strings"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -64,75 +62,63 @@ func main() {
 	})
 	
 	portStr := ":8085"
-	portEnv := os.Getenv("PORT")
+	portEnv := os.Getenv("BFH_PORT")
 	if portEnv != "" {
 		portStr = fmt.Sprintf(":%s", portEnv)
 	}	
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
-type inpStruct struct {
-	AlgoType	string			`json:"algoType"`
-	AlgoURL		string			`json:"svcURL"`
-	MetaJSON	geojson.Feature	`json:"metaDataJSON"`
-	Bands		[]string		`json:"bands"`
-	PzAuth		string			`json:"pzAuthToken"`
-	PzAddr		string			`json:"pzAddr"`
-	DbAuth		string			`json:"dbAuthToken"`
-}
-
 func proc (w http.ResponseWriter, r *http.Request) {
-	var inpObj inpStruct
+	var inpObj struct {
+		AlgoType	string			`json:"algoType"`
+		AlgoURL		string			`json:"svcURL"`
+		MetaJSON	geojson.Feature	`json:"metaDataJSON"`
+		Bands		[]string		`json:"bands"`
+		PzAuth		string			`json:"pzAuthToken"`
+		PzAddr		string			`json:"pzAddr"`
+		DbAuth		string			`json:"dbAuthToken"`
+	}
+	
 	inpBytes, err := ioutil.ReadAll(r.Body)
-/*	if inpString == "" {
-		inpObj.AlgoType = r.FormValue("algoType")
-		inpObj.AlgoURL = r.FormValue("svcURL")
-		bandSlice := strings.Split(r.FormValue("bands"), ",")
-		inpObj.Bands = make([]string, len(bandSlice))
-		copy(inpObj.Bands, bandSlice)
-		inpObj.PzAuth = r.FormValue("pzAuthToken")
-		inpObj.PzAddr = r.FormValue("pzAddr")
-		inpObj.DbAuth = r.FormValue("dbAuthToken")
-		inpObj.MetaJSON, err = geojson.FeatureFromBytes([]byte(r.FormValue("metaDataJSON")))
-		if err != nil {
-			fmt.Fprintln(w, "Error: geojson.FeatureFromBytes: " + err.Error())
-		}
-	} else {*/
+	if err != nil {
+		fmt.Fprintln(w, "Error: ioutil.ReadAll: " + err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+	}	
+	
 	err = json.Unmarshal(inpBytes, &inpObj)
 	if err != nil {
 		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	
 	(&inpObj.MetaJSON).ResolveGeometry()
-	//}
-
-afterB, err := json.Marshal(&inpObj)
-fmt.Println(string(afterB))
-	
-	
 	
 	if inpObj.PzAuth == "" {
-		inpObj.PzAuth = os.Getenv("PZ_AUTH")
+		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
 	}
 	
 	if inpObj.DbAuth == "" {
-		inpObj.DbAuth = os.Getenv("DB_AUTH")
+		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 	
 	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	fmt.Println ("running Algo")	
 	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, dataIDs)
 	if err != nil{
 		fmt.Fprintln(w, "Error: algo result: " + err.Error())
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	
 	fmt.Println (`updating Data ( dataId = ` + resDataID + `)`)	
 	err = updateData (resDataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle update data: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
 	}	
 	fmt.Println ("outputting")
 	fmt.Fprintf(w, resDataID)
