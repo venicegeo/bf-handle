@@ -62,7 +62,7 @@ func main() {
 	})
 	
 	portStr := ":8085"
-	portEnv := os.Getenv("BFH_PORT")
+	portEnv := os.Getenv("PORT")
 	if portEnv != "" {
 		portStr = fmt.Sprintf(":%s", portEnv)
 	}	
