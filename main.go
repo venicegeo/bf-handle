@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"time"
+//	"time"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -86,7 +86,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error: ioutil.ReadAll: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}	
-	
+//fmt.Println ("start")		
 	err = json.Unmarshal(inpBytes, &inpObj)
 	if err != nil {
 		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
@@ -102,14 +102,16 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	if inpObj.DbAuth == "" {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
-	
+//fmt.Println ("provision")	
 	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	time.Sleep(300 * time.Millisecond) //This is a patch.  Hopefully we can cut it back out again some day.
-	fmt.Println ("running Algo")	
+//fmt.Println ("sleepytime")
+//	time.Sleep(30000 * time.Millisecond) //This is a patch.  Hopefully we can cut it back out again some day.
+	fmt.Println ("running Algo")
+pzsvc.Download(dataIDs[0], "", inpObj.PzAddr, inpObj.PzAuth)
 	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, dataIDs)
 	if err != nil{
 		fmt.Fprintln(w, "Error: algo result: " + err.Error())
