@@ -183,6 +183,7 @@ func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 	formVal.Set("cmd", funcStr)
 	formVal.Set("inFiles", inStr)
 	formVal.Set("outGeoJson", geoJName)
+	formVal.Set("authKey", authKey)
 	fmt.Println(funcStr)
 	fmt.Println(inStr)
 	fmt.Println(geoJName)
