@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-//	"time"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -86,7 +85,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error: ioutil.ReadAll: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}	
-//fmt.Println ("start")		
+	
 	err = json.Unmarshal(inpBytes, &inpObj)
 	if err != nil {
 		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
@@ -102,17 +101,16 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	if inpObj.DbAuth == "" {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
-//fmt.Println ("provision")	
+
 	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
-//fmt.Println ("sleepytime")
-//	time.Sleep(30000 * time.Millisecond) //This is a patch.  Hopefully we can cut it back out again some day.
+
 	fmt.Println ("running Algo")
-pzsvc.Download(dataIDs[0], "", inpObj.PzAddr, inpObj.PzAuth)
-	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, dataIDs)
+
+	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, inpObj.PzAuth, dataIDs)
 	if err != nil{
 		fmt.Fprintln(w, "Error: algo result: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
@@ -155,10 +153,10 @@ func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, 
 	return dataIDs, nil
 }
 
-func runAlgo( algoType, algoURL string, dataIDs []string) (string, error) {
+func runAlgo( algoType, algoURL, authKey string, dataIDs []string) (string, error) {
 	switch algoType {
 	case "pzsvc-ossim":
-		return runOssim (algoURL, dataIDs[0], dataIDs[1])
+		return runOssim (algoURL, dataIDs[0], dataIDs[1], authKey)
 	default:
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, algoType)
 	}
@@ -167,7 +165,7 @@ func runAlgo( algoType, algoURL string, dataIDs []string) (string, error) {
 // runOssim does all of the things necessary to process the given images
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
-func runOssim(algoURL, imgID1, imgID2 string) (string, error) {
+func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 	type execStruct struct {
 		InFiles		map[string]string
 		OutFiles	map[string]string
