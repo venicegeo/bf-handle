@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -107,6 +108,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	time.Sleep(300 * time.Millisecond) //This is a patch.  Hopefully we can cut it back out again some day.
 	fmt.Println ("running Algo")	
 	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, dataIDs)
 	if err != nil{
