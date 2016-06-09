@@ -101,7 +101,7 @@ fmt.Println ("start")
 	if inpObj.DbAuth == "" {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
-fmt.Println ("provision")	
+
 	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
@@ -183,11 +183,9 @@ func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 	formVal.Set("cmd", funcStr)
 	formVal.Set("inFiles", inStr)
 	formVal.Set("outGeoJson", geoJName)
-	formVal.Set("authKey", authKey)
 	fmt.Println(funcStr)
 	fmt.Println(inStr)
 	fmt.Println(geoJName)
-	fmt.Println(authKey)
 	resp, err := http.PostForm(algoURL, formVal)
 	if err != nil {
 		return "", err
