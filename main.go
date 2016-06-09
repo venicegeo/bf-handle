@@ -79,7 +79,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		PzAddr		string			`json:"pzAddr"`
 		DbAuth		string			`json:"dbAuthToken"`
 	}
-	
+fmt.Println ("start")		
 	inpBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		fmt.Fprintln(w, "Error: ioutil.ReadAll: " + err.Error())
@@ -91,7 +91,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	
+
 	(&inpObj.MetaJSON).ResolveGeometry()
 	
 	if inpObj.PzAuth == "" {
@@ -101,7 +101,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	if inpObj.DbAuth == "" {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
-
+fmt.Println ("provision")	
 	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
@@ -137,12 +137,10 @@ func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, 
 	fSource := metaDataFeature.PropertyString("sensorName")
 
 	for i, band := range bands {
-		
 		reader, err := catalog.ImageFeatureIOReader(metaDataFeature, band, dbAuth)
 		if err != nil {
 			return nil, err
 		}
-
 		fName := fmt.Sprintf("%s-%s.TIF", fSource, band)	
 		dataID, err := pzsvc.IngestTiffReader(fName, pzAddr, fSource, "", pzAuth, reader, nil)
 		if err != nil {
@@ -185,9 +183,11 @@ func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 	formVal.Set("cmd", funcStr)
 	formVal.Set("inFiles", inStr)
 	formVal.Set("outGeoJson", geoJName)
+	formVal.Set("authKey", authKey)
 	fmt.Println(funcStr)
 	fmt.Println(inStr)
 	fmt.Println(geoJName)
+	fmt.Println(authKey)
 	resp, err := http.PostForm(algoURL, formVal)
 	if err != nil {
 		return "", err
