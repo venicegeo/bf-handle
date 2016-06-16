@@ -161,18 +161,18 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 	var dataID string
 	var attMap map[string]string
 	var err error
-	var hasFeatMeta bool
+	hasFeatMeta := false
 	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
-		attMap, err = getMeta("","","",&inpObj.MetaJSON,nil)
+		/*attMap, err = getMeta("","","",&inpObj.MetaJSON,nil)
+		if err != nil {
+			return "", err
+		}*/
+		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth/*, attMap*/)
 		if err != nil {
 			return "", err
 		}
-		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
-		if err != nil {
-			return "", err
-		}
-		hasFeatMeta = true
+		//hasFeatMeta = true
 	default:
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
@@ -191,7 +191,7 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 // runOssim does all of the things necessary to process the given images
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
-func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string ) (string, error) {
+func runOssim(algoURL, imgID1, imgID2, authKey string/*, attMap map[string]string*/ ) (string, error) {
 	type execStruct struct {
 		InFiles		map[string]string
 		OutFiles	map[string]string
@@ -200,15 +200,17 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 	}
 	
 	geoJName := `shoreline.geojson`
-
+/*
 	funcStr := fmt.Sprintf(`shoreline -i %s.TIF,%s.TIF `, imgID1, imgID2)
 	for key, val := range attMap {
 		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
 	}
 	funcStr = funcStr + geoJName
-	
+*/
+	funcStr := fmt.Sprintf(`shoreline --image %s.TIF,%s.TIF --projection geo-scaled --threshold 0.5 --tolerance 0 %s`, imgID1, imgID2, geoJName)
+
 	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
-	
+
 	var formVal url.Values
 	formVal = make(map[string][]string)
 	formVal.Set("cmd", funcStr)
