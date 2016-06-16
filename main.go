@@ -69,8 +69,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
-func proc (w http.ResponseWriter, r *http.Request) {
-	var inpObj struct {
+type inpStruct struct {
 		AlgoType	string			`json:"algoType"`
 		AlgoURL		string			`json:"svcURL"`
 		MetaJSON	geojson.Feature	`json:"metaDataJSON"`
@@ -78,7 +77,10 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		PzAuth		string			`json:"pzAuthToken"`
 		PzAddr		string			`json:"pzAddr"`
 		DbAuth		string			`json:"dbAuthToken"`
-	}
+}
+
+func proc (w http.ResponseWriter, r *http.Request) {
+	var inpObj inpStruct
 	fmt.Println ("bf-handle called.")		
 	inpBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -103,37 +105,17 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println ("bf-handle: provisioning begins.")
-	dataIDs, err := provision(&inpObj.MetaJSON, inpObj.DbAuth, inpObj.PzAuth, inpObj.PzAddr, inpObj.Bands)
+	dataIDs, err := provision(inpObj)
 	if err != nil{
 		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
 	fmt.Println ("bf-handle: running Algo")
-	resDataID, err := runAlgo(inpObj.AlgoType, inpObj.AlgoURL, inpObj.PzAuth, dataIDs)
+	resDataID, err := runAlgo(inpObj, dataIDs)
 	if err != nil{
 		fmt.Fprintln(w, "Error: algo result: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
-	}
-	
-	fmt.Println (`bf-handle: getting metadata ( dataId = ` + resDataID + `)`)	
-	attMap, err := getS3Meta (resDataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
-	if err != nil{
-		fmt.Fprintln(w, "Error: bf-handle get metadata: " + err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-
-// **** use the following to update S3 metadata for ossim-like algos
-//	err = pzsvc.UpdateFileMeta(resDataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
-//	if err != nil {
-//		fmt.Fprintln(w, "Error: bf-handle update s3 metadata: " + err.Error())
-//		w.WriteHeader(http.StatusInternalServerError)
-//	}
-
-	resDataID, err = addGeoFeatureMeta(resDataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
-	if err != nil {
-		fmt.Fprintln(w, "Error: bf-handle update feature metadata: " + err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 
 	fmt.Println ("outputting")
@@ -144,14 +126,15 @@ func proc (w http.ResponseWriter, r *http.Request) {
 // download the images from that image set associated with the given bands, upload them to
 // the S3 bucket in Pz, and return the dataIds as a string slice, maintaining the order from the
 // band string slice.
-func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, bands []string) ( []string, error ) {
+
+func provision(inpObj inpStruct) ( []string, error ) {
 	
-	dataIDs := make([]string, len(bands))
+	dataIDs := make([]string, len(inpObj.Bands))
 
-	fSource := metaDataFeature.PropertyString("sensorName")
+	fSource := inpObj.MetaJSON.PropertyString("sensorName")
 
-	for i, band := range bands {
-		reader, err := catalog.ImageFeatureIOReader(metaDataFeature, band, dbAuth)
+	for i, band := range inpObj.Bands {
+		reader, err := catalog.ImageFeatureIOReader(&inpObj.MetaJSON, band, inpObj.DbAuth)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +147,7 @@ func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, 
 
 		// TODO: at some point, we might wish to add properties to the TIFF files as we ingest them.
 		// We'd do that by replacing the "nil", below, with an appropriate map[string]string.
-		dataID, err := pzsvc.Ingest(fName, "raster", pzAddr, fSource, "", pzAuth, bSlice, nil)
+		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -173,19 +156,42 @@ func provision(metaDataFeature *geojson.Feature, dbAuth, pzAuth, pzAddr string, 
 	return dataIDs, nil
 }
 
-func runAlgo( algoType, algoURL, authKey string, dataIDs []string) (string, error) {
-	switch algoType {
+// 
+func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
+	var dataID string
+	var attMap map[string]string
+	var err error
+	var hasFeatMeta bool
+	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
-		return runOssim (algoURL, dataIDs[0], dataIDs[1], authKey)
+		attMap, err = getMeta("","","",&inpObj.MetaJSON,nil)
+		if err != nil {
+			return "", err
+		}
+		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
+		if err != nil {
+			return "", err
+		}
+		hasFeatMeta = true
 	default:
-		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, algoType)
+		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
+
+	if hasFeatMeta {
+		return dataID, pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
+	}
+
+	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON, nil)
+	if err != nil{
+		return "", err
+	}
+	return addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 }
 
 // runOssim does all of the things necessary to process the given images
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
-func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
+func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string ) (string, error) {
 	type execStruct struct {
 		InFiles		map[string]string
 		OutFiles	map[string]string
@@ -193,11 +199,14 @@ func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 		Errors		[]string
 	}
 	
-	imgName1 := (imgID1 + ".TIF")
-	imgName2 := (imgID2 + ".TIF")
-	geoJName := "shoreline.geojson"
-	funcStr := fmt.Sprintf(`shoreline --image %s,%s --projection geo-scaled --threshold 0.5 --tolerance 0 %s`,
-							imgName1, imgName2, geoJName)
+	geoJName := `shoreline.geojson`
+
+	funcStr := fmt.Sprintf(`shoreline -i %s.TIF,%s.TIF `, imgID1, imgID2)
+	for key, val := range attMap {
+		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
+	}
+	funcStr = funcStr + geoJName
+	
 	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
 	
 	var formVal url.Values
@@ -234,32 +243,37 @@ func runOssim(algoURL, imgID1, imgID2, authKey string) (string, error) {
 	
 	return outDataID, nil
 
-// new format:
-// ossim-cli shoreline -i garden_b3.tif, garden_b6.tif  --prop prop1:myprop1 --prop prop2:myprop2 debug.json
-// prop1:myprop1 and prop2:myprop2 are arbitrary key/value pairs for this purpose.  They'll be added to the properties.
-// the filenames (garden_b3.tif and garden_b6.tif) will also be saved in an "input_files" list.  Figure out a way to
-// make that work well.  Talk with Mark about what sort of information would fit well into that space.
-
 }
 
-// updateS3Meta grabs the existing metadata for a file from the S3 bucket, adds the metadata that
-// can be gleaned from the geojson feature provided by the imag harvester, and returns the result.
-func getS3Meta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[string]string, error) {
-	dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
-	if err != nil {
-		return nil, err
+// getMeta takes up to three sources for metadata - the S3 metadata off of a GetFileMeta
+// call, an existing map[string]string, and the useful parts of one fo the geojson
+// features from the harvester.  It builds a map[string]string out of whichever of these
+// is available and returns the result.
+func getMeta(dataID, pzAddr, pzAuth string,
+			 feature *geojson.Feature,
+			 attMap map[string]string) (map[string]string, error) {
+	if attMap == nil {
+		attMap = make(map[string]string)
 	}
 
-	attMap := make(map[string]string)
-	for key, val := range dataRes.Metadata.Metadata {
-		attMap[key] = val
+	if dataID != "" {
+		dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
+		if err != nil {
+			return nil, err
+		}
+
+		for key, val := range dataRes.Metadata.Metadata {
+			attMap[key] = val
+		}
 	}
 	
-	attMap["sourceID"] = feature.ID // covers source and ID in that source
-	attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
-	attMap["sensorName"] = feature.PropertyString("sensorName")
-	attMap["resolution"] = feature.PropertyString("resolution")
-	
+	if feature != nil {
+		attMap["sourceID"] = feature.ID // covers source and ID in that source
+		attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
+		attMap["sensorName"] = feature.PropertyString("sensorName")
+		attMap["resolution"] = feature.PropertyString("resolution")
+	}
+
 	return attMap, nil
 }
 
@@ -285,8 +299,12 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 	if err != nil {
 		return "", err
 	}
-// TODO: fill in some of those empty quotes.
-	dataID, err = pzsvc.Ingest("", "geojson", pzAddr, "", "", pzAuth, b2, props)
+
+	fName := props["sourceID"] + ".geojson"
+	source := props["algoName"]
+	version := props["version"]
+
+	dataID, err = pzsvc.Ingest( fName, "geojson", pzAddr, source, version, pzAuth, b2, props)
 
 	return dataID, err
 }
