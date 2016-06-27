@@ -70,28 +70,49 @@ func main() {
 }
 
 type inpStruct struct {
-		AlgoType	string			`json:"algoType"`
-		AlgoURL		string			`json:"svcURL"`
-		MetaJSON	geojson.Feature	`json:"metaDataJSON"`
-		Bands		[]string		`json:"bands"`
-		PzAuth		string			`json:"pzAuthToken"`
-		PzAddr		string			`json:"pzAddr"`
-		DbAuth		string			`json:"dbAuthToken"`
+	AlgoType	string			`json:"algoType"`
+	AlgoURL		string			`json:"svcURL"`
+	BndMrgType	string			`json:"bandMergeType"`
+	BndMrgURL	string			`json:"bandMergeURL"`
+	MetaJSON	geojson.Feature	`json:"metaDataJSON"`
+	Bands		[]string		`json:"bands"`
+	PzAuth		string			`json:"pzAuthToken"`
+	PzAddr		string			`json:"pzAddr"`
+	DbAuth		string			`json:"dbAuthToken"`
+}
+
+type outpStruct struct {
+	ShoreDataID	string			`json:"shoreDataID"`
+	RGBloc		string			`json:"rgbLoc"`
+	Error		string			`json:"error"`
 }
 
 func proc (w http.ResponseWriter, r *http.Request) {
 	var inpObj inpStruct
+	var outpObj outpStruct
+
+	handleOut := func (errmsg string, status int) {
+		outpObj.Error = errmsg
+		w.WriteHeader(status)
+		b, err := json.Marshal(outpObj)
+		if err != nil {
+			fmt.Fprintf(w, `{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
+		}
+		fmt.Fprintf(w, string(b))
+		return
+	}
+
 	fmt.Println ("bf-handle called.")		
 	inpBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		fmt.Fprintln(w, "Error: ioutil.ReadAll: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		handleOut("Error: ioutil.ReadAll: " + err.Error(), http.StatusBadRequest)
+		return
 	}	
 	
 	err = json.Unmarshal(inpBytes, &inpObj)
 	if err != nil {
-		fmt.Fprintln(w, "Error: json.Unmarshal: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		handleOut("Error: json.Unmarshal: " + err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	(&inpObj.MetaJSON).ResolveGeometry()
@@ -107,19 +128,19 @@ func proc (w http.ResponseWriter, r *http.Request) {
 	fmt.Println ("bf-handle: provisioning begins.")
 	dataIDs, err := provision(inpObj)
 	if err != nil{
-		fmt.Fprintln(w, "Error: bf-handle provisioning: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		handleOut("Error: bf-handle provisioning: " + err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	fmt.Println ("bf-handle: running Algo")
-	resDataID, err := runAlgo(inpObj, dataIDs)
+	outpObj.ShoreDataID, err = runAlgo(inpObj, dataIDs)
 	if err != nil{
-		fmt.Fprintln(w, "Error: algo result: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		handleOut("Error: algo result: " + err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	fmt.Println ("outputting")
-	fmt.Fprintf(w, resDataID)
+	handleOut("", http.StatusOK)
 }
 
 // provision uses the given image metadata to access the database where its image set is stored,
@@ -164,34 +185,35 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 	hasFeatMeta := false
 	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
-		/*attMap, err = getMeta("","","",&inpObj.MetaJSON,nil)
-		if err != nil {
-			return "", err
-		}*/
-		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth/*, attMap*/)
+		attMap, err = getMeta("","","",&inpObj.MetaJSON)
 		if err != nil {
 			return "", err
 		}
-		//hasFeatMeta = true
+		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
+		if err != nil {
+			return "", err
+		}
+		hasFeatMeta = true
 	default:
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
+	}
+
+	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
+	if err != nil{
+		return "", err
 	}
 
 	if hasFeatMeta {
 		return dataID, pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 	}
-
-	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON, nil)
-	if err != nil{
-		return "", err
-	}
+	
 	return addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 }
 
 // runOssim does all of the things necessary to process the given images
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
-func runOssim(algoURL, imgID1, imgID2, authKey string/*, attMap map[string]string*/ ) (string, error) {
+func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string ) (string, error) {
 	type execStruct struct {
 		InFiles		map[string]string
 		OutFiles	map[string]string
@@ -200,14 +222,14 @@ func runOssim(algoURL, imgID1, imgID2, authKey string/*, attMap map[string]strin
 	}
 	
 	geoJName := `shoreline.geojson`
-/*
+
 	funcStr := fmt.Sprintf(`shoreline -i %s.TIF,%s.TIF `, imgID1, imgID2)
 	for key, val := range attMap {
 		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
 	}
 	funcStr = funcStr + geoJName
-*/
-	funcStr := fmt.Sprintf(`shoreline --image %s.TIF,%s.TIF --projection geo-scaled --threshold 0.5 --tolerance 0 %s`, imgID1, imgID2, geoJName)
+
+	//funcStr := fmt.Sprintf(`shoreline --image %s.TIF,%s.TIF --projection geo-scaled --threshold 0.5 --tolerance 0 %s`, imgID1, imgID2, geoJName)
 
 	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
 
@@ -251,12 +273,8 @@ func runOssim(algoURL, imgID1, imgID2, authKey string/*, attMap map[string]strin
 // call, an existing map[string]string, and the useful parts of one fo the geojson
 // features from the harvester.  It builds a map[string]string out of whichever of these
 // is available and returns the result.
-func getMeta(dataID, pzAddr, pzAuth string,
-			 feature *geojson.Feature,
-			 attMap map[string]string) (map[string]string, error) {
-	if attMap == nil {
-		attMap = make(map[string]string)
-	}
+func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[string]string, error) {
+	attMap := make(map[string]string)
 
 	if dataID != "" {
 		dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
