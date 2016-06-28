@@ -155,24 +155,26 @@ func provision(inpObj inpStruct) ( []string, error ) {
 	fSource := inpObj.MetaJSON.PropertyString("sensorName")
 
 	for i, band := range inpObj.Bands {
+fmt.Println ("provisioning: Beginning " + band + " band.")
 		reader, err := catalog.ImageFeatureIOReader(&inpObj.MetaJSON, band, inpObj.DbAuth)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(`catalog.ImageFeatureIOReader: %s`, err.Error())
 		}
 		fName := fmt.Sprintf("%s-%s.TIF", fSource, band)
 
 		bSlice, err := ioutil.ReadAll(reader)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(`ioutil.Readall: %s`, err.Error())
 		}
-
+fmt.Println ("provisioning: Bytes acquired.  Beginning ingest.")
 		// TODO: at some point, we might wish to add properties to the TIFF files as we ingest them.
 		// We'd do that by replacing the "nil", below, with an appropriate map[string]string.
 		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(`pzsvc.Ingest: %s`, err.Error())
 		}
 		dataIDs[i] = dataID
+fmt.Println ("provisioning: Ingest completed.")
 	}
 	return dataIDs, nil
 }
