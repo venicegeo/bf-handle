@@ -195,7 +195,9 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		hasFeatMeta = true
+//		hasFeatMeta = true  // Currently, Ossim does nto have feature-level metadata after all.
+							// until that's fixed, we need to treat them teh same way we do
+							// everyone else.
 	default:
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
@@ -230,8 +232,6 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
 	}
 	funcStr = funcStr + geoJName
-
-	//funcStr := fmt.Sprintf(`shoreline --image %s.TIF,%s.TIF --projection geo-scaled --threshold 0.5 --tolerance 0 %s`, imgID1, imgID2, geoJName)
 
 	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
 
