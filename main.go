@@ -15,13 +15,13 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
+	//"net/url"
 	"os"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
@@ -90,15 +90,17 @@ type outpStruct struct {
 func proc (w http.ResponseWriter, r *http.Request) {
 	var inpObj inpStruct
 	var outpObj outpStruct
+	var rgbChan chan string
 
+	// the following is a subfunction for sending out the output
+	// prior to function return.
 	handleOut := func (errmsg string, status int) {
 		outpObj.Error = errmsg
-		w.WriteHeader(status)
 		b, err := json.Marshal(outpObj)
 		if err != nil {
 			fmt.Fprintf(w, `{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
 		}
-		fmt.Fprintf(w, string(b))
+		http.Error(w, string(b), 500)
 		return
 	}
 
@@ -125,8 +127,13 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
+	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
+		rgbChan = make(chan string)
+		go rgbGen(inpObj, rgbChan)
+	}
+
 	fmt.Println ("bf-handle: provisioning begins.")
-	dataIDs, err := provision(inpObj)
+	dataIDs, err := provision(inpObj, nil)
 	if err != nil{
 		handleOut("Error: bf-handle provisioning: " + err.Error(), http.StatusBadRequest)
 		return
@@ -138,6 +145,15 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		handleOut("Error: algo result: " + err.Error(), http.StatusBadRequest)
 		return
 	}
+	if rgbChan != nil {
+		fmt.Println ("waiting for rgb")
+		rgbLoc := <-rgbChan
+		if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
+			handleOut(rgbLoc, http.StatusInternalServerError)
+			return
+		}
+		outpObj.RGBloc = rgbLoc
+	}
 
 	fmt.Println ("outputting")
 	handleOut("", http.StatusOK)
@@ -148,13 +164,15 @@ func proc (w http.ResponseWriter, r *http.Request) {
 // the S3 bucket in Pz, and return the dataIds as a string slice, maintaining the order from the
 // band string slice.
 
-func provision(inpObj inpStruct) ( []string, error ) {
+func provision(inpObj inpStruct, bands []string) ( []string, error ) {
 	
-	dataIDs := make([]string, len(inpObj.Bands))
-
+	if bands == nil {
+		bands = inpObj.Bands
+	}
+	dataIDs := make([]string, len(bands))
 	fSource := inpObj.MetaJSON.PropertyString("sensorName")
 
-	for i, band := range inpObj.Bands {
+	for i, band := range bands {
 fmt.Println ("provisioning: Beginning " + band + " band.")
 		reader, err := catalog.ImageFeatureIOReader(&inpObj.MetaJSON, band, inpObj.DbAuth)
 		if err != nil {
@@ -189,11 +207,11 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 	case "pzsvc-ossim":
 		attMap, err = getMeta("","","",&inpObj.MetaJSON)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf(`getMeta: %s`, err.Error())
 		}
 		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf(`runOssim: %s`, err.Error())
 		}
 //		hasFeatMeta = true  // Currently, Ossim does nto have feature-level metadata after all.
 							// until that's fixed, we need to treat them teh same way we do
@@ -204,7 +222,7 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 
 	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
 	if err != nil{
-		return "", err
+		return "", fmt.Errorf(`getMeta2: %s`, err.Error())
 	}
 
 	if hasFeatMeta {
@@ -218,13 +236,6 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
 func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string ) (string, error) {
-	type execStruct struct {
-		InFiles		map[string]string
-		OutFiles	map[string]string
-		ProgReturn	string
-		Errors		[]string
-	}
-	
 	geoJName := `shoreline.geojson`
 
 	funcStr := fmt.Sprintf(`shoreline -i %s.TIF,%s.TIF `, imgID1, imgID2)
@@ -233,42 +244,20 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 	}
 	funcStr = funcStr + geoJName
 
-	inStr := fmt.Sprintf(`%s,%s`, imgID1, imgID2)
+	inpObj := pzsvc.ExecIn{	FuncStr:funcStr,
+							InFiles:[]string{0:imgID1,1:imgID2},
+							OutGeoJSON:[]string{0:geoJName},
+							OutGeoTIFF:nil,
+							OutTxt:nil,
+							AlgoURL:algoURL,
+							AuthKey:authKey}
 
-	var formVal url.Values
-	formVal = make(map[string][]string)
-	formVal.Set("cmd", funcStr)
-	formVal.Set("inFiles", inStr)
-	formVal.Set("outGeoJson", geoJName)
-	formVal.Set("authKey", authKey)
-	fmt.Println(funcStr)
-	fmt.Println(inStr)
-	fmt.Println(geoJName)
-	resp, err := http.PostForm(algoURL, formVal)
-	if err != nil {
-		return "", err
-	}
-	
-	respBuf := &bytes.Buffer{}
-	_, err = respBuf.ReadFrom(resp.Body)
-	if err != nil {
-		return "", err
-	}
 
-	var respObj execStruct
-	err = json.Unmarshal(respBuf.Bytes(), &respObj)
+	outMap, err := pzsvc.CallPzsvcExec(&inpObj)
 	if err != nil {
-		fmt.Println("error:", err)
+		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
 	}
-	
-	outDataID := respObj.OutFiles[geoJName]
-	if outDataID == "" {
-		errstr := `Error: could not find outfile.  Likely failure in pzsvc-ossim call.`
-		return "", fmt.Errorf("%s  JSON output: %s", errstr, respBuf.String())
-	}
-	
-	return outDataID, nil
-
+	return outMap[geoJName], nil
 }
 
 // getMeta takes up to three sources for metadata - the S3 metadata off of a GetFileMeta
@@ -331,8 +320,53 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 	return dataID, err
 }
 
+func rgbGen(inpObj inpStruct, rgbChan chan string) {
+	bandIDs, err := provision(inpObj, []string{"red","green","blue"})
+	if err != nil {
+		rgbChan <- ("Error: " + err.Error())
+		return
+	}
+	var fileID string
 
+	switch inpObj.BndMrgType {
+	case "pzsvc-ossim":
 
+		outFName := "rgb.TIF"
+
+		funcStr := fmt.Sprintf(`bandmerge --red %s --green %s --blue %s %s`,
+								bandIDs[0] + ".TIF",
+								bandIDs[1] + ".TIF",
+								bandIDs[2] + ".TIF",
+								outFName)
+
+		execObj := pzsvc.ExecIn{FuncStr:funcStr,
+								InFiles:bandIDs,
+								OutGeoJSON:nil,
+								OutGeoTIFF:[]string{0:outFName},
+								OutTxt:nil,
+								AlgoURL:inpObj.BndMrgURL,
+								AuthKey:inpObj.PzAuth}
+
+		outMap, err := pzsvc.CallPzsvcExec(&execObj)
+		if err != nil {
+			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: %s`, err.Error())
+			return
+		}
+		fileID = outMap[outFName]
+		fmt.Println("RGB fileId: " + fileID)
+
+	default:
+		rgbChan <- ("Error: Unknown bandmerge algorithm")
+		return
+	}
+
+	outpID, err := pzsvc.DeployToGeoServer(fileID, inpObj.PzAddr, inpObj.PzAuth)
+
+	fmt.Println("RGB geoserver ID: " + outpID)
+
+	rgbChan <- outpID
+	return
+}
 
 
 
