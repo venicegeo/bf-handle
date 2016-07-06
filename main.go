@@ -238,7 +238,7 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string ) (string, error) {
 	geoJName := `shoreline.geojson`
 
-	funcStr := fmt.Sprintf(`shoreline -i %s.TIF,%s.TIF `, imgID1, imgID2)
+	funcStr := fmt.Sprintf(`shoreline --image %s.TIF,%s.TIF --projection geo-scaled `, imgID1, imgID2)
 	for key, val := range attMap {
 		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
 	}
