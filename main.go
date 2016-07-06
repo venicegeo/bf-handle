@@ -100,7 +100,7 @@ func proc (w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Fprintf(w, `{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
 		}
-		http.Error(w, string(b), 500)
+		http.Error(w, string(b), status)
 		return
 	}
 
