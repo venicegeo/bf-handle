@@ -15,13 +15,11 @@
 package main
 
 import (
-	//"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	//"net/url"
 	"os"
 	
 	"github.com/venicegeo/pzsvc-exec/pzsvc"
