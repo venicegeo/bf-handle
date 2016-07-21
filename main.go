@@ -43,6 +43,8 @@ func main() {
 			fmt.Fprintf(w, "hello.")
 		case "/execute":
 			bf.GenShoreline (w,r)
+		case "/newProduct":
+			bf.NewProductLine (w,r)
 		default:
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")
 		}

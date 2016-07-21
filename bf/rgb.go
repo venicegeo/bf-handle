@@ -15,33 +15,32 @@
 package bf
 
 import (
-//	"encoding/json"
 	"fmt"
-//	"io/ioutil"
-//	"log"
-//	"net/http"
-//	"os"
+	"net/http"
 	
 	"github.com/venicegeo/pzsvc-lib"
-//	"github.com/venicegeo/geojson-go/geojson"
-//	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
-
-func rgbGen(inpObj inpStruct, rgbChan chan string) {
+// rgbGen is designed to work as a subthread function.  It takes in
+// a basic input object, proviions appropriate files out of the band
+// information, and applies some manner of bandmerge to them (currently
+// only pzsvc-ossim is available).  The results get pushed back through
+// the given channel.
+func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 	bandIDs, err := provision(inpObj, []string{"red","green","blue"})
 	if err != nil {
 		rgbChan <- ("Error: " + err.Error())
 		return
 	}
 	var fileID string
+	client := &http.Client{}
 
 	switch inpObj.BndMrgType {
 	case "pzsvc-ossim":
 
 		outFName := "rgb.TIF"
 
-		funcStr := fmt.Sprintf(`bandmerge --red %s --green %s --blue %s %s`,
+		funcStr := fmt.Sprintf(`bandmerge --output-radiometry U8 --red %s --green %s --blue %s %s`,
 								bandIDs[0] + ".TIF",
 								bandIDs[1] + ".TIF",
 								bandIDs[2] + ".TIF",
@@ -53,7 +52,8 @@ func rgbGen(inpObj inpStruct, rgbChan chan string) {
 								OutGeoTIFF:[]string{0:outFName},
 								OutTxt:nil,
 								AlgoURL:inpObj.BndMrgURL,
-								AuthKey:inpObj.PzAuth}
+								AuthKey:inpObj.PzAuth,
+								Client:client}
 
 		outMap, err := pzsvc.CallPzsvcExec(&execObj)
 		if err != nil {
@@ -68,7 +68,7 @@ func rgbGen(inpObj inpStruct, rgbChan chan string) {
 		return
 	}
 
-	outpID, err := pzsvc.DeployToGeoServer(fileID, inpObj.PzAddr, inpObj.PzAuth)
+	outpID, err := pzsvc.DeployToGeoServer(fileID, "", inpObj.PzAddr, inpObj.PzAuth, client)
 
 	fmt.Println("RGB geoserver ID: " + outpID)
 

@@ -18,8 +18,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
+	"net/http"
+	"runtime"
+	"strconv"
 	
 	"github.com/venicegeo/pzsvc-lib"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -32,19 +34,20 @@ Various TODOs:
 - improve error handling (currently *very* rudimentary)
 */
 
-type inpStruct struct {
-	AlgoType	string			`json:"algoType"`
-	AlgoURL		string			`json:"svcURL"`
-	BndMrgType	string			`json:"bandMergeType"`
-	BndMrgURL	string			`json:"bandMergeURL"`
-	MetaJSON	geojson.Feature	`json:"metaDataJSON"`
-	Bands		[]string		`json:"bands"`
-	PzAuth		string			`json:"pzAuthToken"`
-	PzAddr		string			`json:"pzAddr"`
-	DbAuth		string			`json:"dbAuthToken"`
+type gsInpStruct struct {
+	AlgoType	string			`json:"algoType"`		// API for the shoreline algorithm
+	AlgoURL		string			`json:"svcURL"`			// URL for the shoreline algorithm
+	BndMrgType	string			`json:"bandMergeType"`	// API for the bandmerge/rgb algorithm (optional)
+	BndMrgURL	string			`json:"bandMergeURL"`	// URL for the bandmerge/rgb algorithm (optional)
+	MetaJSON	geojson.Feature	`json:"metaDataJSON"`	// JSON block from Image Catalog
+	Bands		[]string		`json:"bands"`			// names of bands to feed into the shoreline algorithm
+	PzAuth		string			`json:"pzAuthToken"`	// Auth string for this Pz instance
+	PzAddr		string			`json:"pzAddr"`			// gateway URL for this Pz instance 
+	DbAuth		string			`json:"dbAuthToken"`	// Auth string for the initial image database
+	LGroupID	string			`json:"lGroupId"`		// UUID string for the target geoserver layer group
 }
 
-type outpStruct struct {
+type gsOutpStruct struct {
 	ShoreDataID	string			`json:"shoreDataID"`
 	RGBloc		string			`json:"rgbLoc"`
 	Error		string			`json:"error"`
@@ -54,34 +57,36 @@ type outpStruct struct {
 // primary workhorse function of bf-handle as a whole.  It
 // processes raster images into geojson.
 func GenShoreline (w http.ResponseWriter, r *http.Request) {
-	var inpObj inpStruct
-	var outpObj outpStruct
+	var inpObj gsInpStruct
+	var outpObj gsOutpStruct
 	var rgbChan chan string
+	var err error
 
 	// handleOut is a subfunction for making sure that the output is
 	// handled in a consistent manner.
 	handleOut := func (errmsg string, status int) {
+		if (errmsg != "") {
+			_, _, line, ok := runtime.Caller(1)
+			if ok == true {
+				errmsg = `(bf-handle/bf/process.go, ` + strconv.Itoa(line) + `): ` + errmsg
+			}
+		}
 		outpObj.Error = errmsg
 		b, err := json.Marshal(outpObj)
 		if err != nil {
-			fmt.Fprintf(w, `{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
+			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
 		}
 		http.Error(w, string(b), status)
 		return
 	}
 
 	fmt.Println ("bf-handle called.")		
-	inpBytes, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		handleOut("Error: ioutil.ReadAll: " + err.Error(), http.StatusBadRequest)
-		return
-	}	
-	
-	err = json.Unmarshal(inpBytes, &inpObj)
-	if err != nil {
-		handleOut("Error: json.Unmarshal: " + err.Error(), http.StatusBadRequest)
-		return
+	if _, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
+		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusBadRequest)
 	}
+
+	// TODO: if inpObj has link to MetaJSON, but no actual MetaJSON, need to call a get on it and populate
+	// MetaJSON accordingly.
 
 	(&inpObj.MetaJSON).ResolveGeometry()
 	
@@ -129,8 +134,7 @@ func GenShoreline (w http.ResponseWriter, r *http.Request) {
 // download the images from that image set associated with the given bands, upload them to
 // the S3 bucket in Pz, and return the dataIds as a string slice, maintaining the order from the
 // band string slice.
-
-func provision(inpObj inpStruct, bands []string) ( []string, error ) {
+func provision(inpObj gsInpStruct, bands []string) ( []string, error ) {
 	
 	if bands == nil {
 		bands = inpObj.Bands
@@ -153,7 +157,7 @@ fmt.Println ("provisioning: Beginning " + band + " band.")
 fmt.Println ("provisioning: Bytes acquired.  Beginning ingest.")
 		// TODO: at some point, we might wish to add properties to the TIFF files as we ingest them.
 		// We'd do that by replacing the "nil", below, with an appropriate map[string]string.
-		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil)
+		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil, &http.Client{})
 		if err != nil {
 			return nil, fmt.Errorf(`pzsvc.Ingest: %s`, err.Error())
 		}
@@ -163,8 +167,12 @@ fmt.Println ("provisioning: Ingest completed.")
 	return dataIDs, nil
 }
 
-// 
-func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
+// runAlgo does whatever it takes to run the algorithm it is given on
+// the dataIDs it is told to target.  It returns the dataId of the result
+// file.  Right now, it doesn't have any algorithms to handle other than
+// pzsvc-ossim, but as that changes the case statement is going to get
+// bigger and uglier.
+func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, error) {
 	var dataID string
 	var attMap map[string]string
 	var err error
@@ -180,7 +188,7 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 			return "", fmt.Errorf(`runOssim: %s`, err.Error())
 		}
 //		hasFeatMeta = true  // Currently, Ossim does not have feature-level metadata after all.
-							// until that's fixed, we need to treat them teh same way we do
+							// until/unless that's fixed, we need to treat them the same way we do
 							// everyone else.
 	default:
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
@@ -192,10 +200,23 @@ func runAlgo( inpObj inpStruct, dataIDs []string) (string, error) {
 	}
 
 	if hasFeatMeta {
-		return dataID, pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
+		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap, &http.Client{})
+		if err != nil{
+			return "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
+		}
+	} else {
+		dataID, err = addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
+		if err != nil{
+			return "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
+		}
 	}
-	
-	return addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
+
+	_, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth, &http.Client{})
+	if err != nil{
+		return "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
+	}
+
+	return dataID, nil
 }
 
 // runOssim does all of the things necessary to process the given images
@@ -216,7 +237,8 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 							OutGeoTIFF:nil,
 							OutTxt:nil,
 							AlgoURL:algoURL,
-							AuthKey:authKey}
+							AuthKey:authKey,
+							Client:&http.Client{}}
 
 
 	outMap, err := pzsvc.CallPzsvcExec(&inpObj)
