@@ -35,16 +35,17 @@ Various TODOs:
 */
 
 type gsInpStruct struct {
-	AlgoType	string			`json:"algoType"`		// API for the shoreline algorithm
-	AlgoURL		string			`json:"svcURL"`			// URL for the shoreline algorithm
-	BndMrgType	string			`json:"bandMergeType"`	// API for the bandmerge/rgb algorithm (optional)
-	BndMrgURL	string			`json:"bandMergeURL"`	// URL for the bandmerge/rgb algorithm (optional)
-	MetaJSON	geojson.Feature	`json:"metaDataJSON"`	// JSON block from Image Catalog
-	Bands		[]string		`json:"bands"`			// names of bands to feed into the shoreline algorithm
-	PzAuth		string			`json:"pzAuthToken"`	// Auth string for this Pz instance
-	PzAddr		string			`json:"pzAddr"`			// gateway URL for this Pz instance 
-	DbAuth		string			`json:"dbAuthToken"`	// Auth string for the initial image database
-	LGroupID	string			`json:"lGroupId"`		// UUID string for the target geoserver layer group
+	AlgoType	string				`json:"algoType"`		// API for the shoreline algorithm
+	AlgoURL		string				`json:"svcURL"`			// URL for the shoreline algorithm
+	BndMrgType	string				`json:"bandMergeType"`	// API for the bandmerge/rgb algorithm (optional)
+	BndMrgURL	string				`json:"bandMergeURL"`	// URL for the bandmerge/rgb algorithm (optional)
+	MetaJSON	*geojson.Feature	`json:"metaDataJSON"`	// JSON block from Image Catalog
+	MetaURL		string				`json:"metaDataURL"`	// URL to call to get JSON block
+	Bands		[]string			`json:"bands"`			// names of bands to feed into the shoreline algorithm
+	PzAuth		string				`json:"pzAuthToken"`	// Auth string for this Pz instance
+	PzAddr		string				`json:"pzAddr"`			// gateway URL for this Pz instance 
+	DbAuth		string				`json:"dbAuthToken"`	// Auth string for the initial image database
+	LGroupID	string				`json:"lGroupId"`		// UUID string for the target geoserver layer group
 }
 
 type gsOutpStruct struct {
@@ -81,14 +82,24 @@ func GenShoreline (w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println ("bf-handle called.")		
-	if _, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusBadRequest)
+	if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
+		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".  Input String: " + string(b), http.StatusBadRequest)
+		return
 	}
 
-	// TODO: if inpObj has link to MetaJSON, but no actual MetaJSON, need to call a get on it and populate
-	// MetaJSON accordingly.
+	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
+		handleOut("Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON.", http.StatusBadRequest)
+		return
+	}
 
-	(&inpObj.MetaJSON).ResolveGeometry()
+	if inpObj.MetaURL != "" {
+		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON, &http.Client{}); err != nil {
+			handleOut("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error(), http.StatusBadRequest)
+			return			
+		}
+	}
+
+	inpObj.MetaJSON.ResolveGeometry()
 	
 	if inpObj.PzAuth == "" {
 		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
@@ -144,7 +155,7 @@ func provision(inpObj gsInpStruct, bands []string) ( []string, error ) {
 
 	for i, band := range bands {
 fmt.Println ("provisioning: Beginning " + band + " band.")
-		reader, err := catalog.ImageFeatureIOReader(&inpObj.MetaJSON, band, inpObj.DbAuth)
+		reader, err := catalog.ImageFeatureIOReader(inpObj.MetaJSON, band, inpObj.DbAuth)
 		if err != nil {
 			return nil, fmt.Errorf(`catalog.ImageFeatureIOReader: %s`, err.Error())
 		}
@@ -179,7 +190,7 @@ func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, error) {
 	hasFeatMeta := false
 	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
-		attMap, err = getMeta("","","",&inpObj.MetaJSON)
+		attMap, err = getMeta("","","",inpObj.MetaJSON)
 		if err != nil {
 			return "", fmt.Errorf(`getMeta: %s`, err.Error())
 		}
@@ -194,7 +205,7 @@ func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, error) {
 		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
 
-	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, &inpObj.MetaJSON)
+	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, inpObj.MetaJSON)
 	if err != nil{
 		return "", fmt.Errorf(`getMeta2: %s`, err.Error())
 	}

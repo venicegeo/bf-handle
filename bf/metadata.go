@@ -36,7 +36,7 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 			return nil, err
 		}
 
-		for key, val := range dataRes.Metadata.Metadata {
+		for key, val := range dataRes.ResMeta.Metadata {
 			attMap[key] = val
 		}
 	}

@@ -24,11 +24,13 @@ import (
 //	"time"
 
 	"github.com/venicegeo/pzsvc-lib"
-	"github.com/venicegeo/geojson-go/geojson"
+//	"github.com/venicegeo/geojson-go/geojson"
 //	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
 type trigReqStruct struct {
+
+	BFinpObj	gsInpStruct	`json:"bfInputJSON,omitempty"`	
 	MaxX		string		`json:"maxX,omitempty"`
 	MinX		string		`json:"minX,omitempty"`
 	MaxY		string		`json:"maxY,omitempty"`
@@ -41,23 +43,6 @@ type trigReqStruct struct {
 	SensorName	string		`json:"sensorName,omitempty"`
 	EventTypeID	string		`json:"eventTypeId,omitempty"`
 	ServiceID	string		`json:"serviceId,omitempty"`
-	PzAddr		string		`json:"pzAddr,omitempty"`
-	PzAuth		string		`json:"pzAuth,omitempty"`
-	AlgoURL		string		`json:"algoUrl,omitempty"`
-	AlgoType	string		`json:"algoType,omitempty"`
-	DbAuth		string		`json:"dbAuth,omitempty"`
-	Bands		[]string	`json:"bands,omitEmpty"`
-}
-
-func buildTrigFuncData (inObj trigReqStruct) string {
-	var dataStruct gsInpStruct
-	dataStruct.AlgoType = inObj.AlgoType
-	dataStruct.AlgoURL = inObj.AlgoURL
-	dataStruct.MetaJSON = geojson.Feature{} //TODO: this comes from the Event.  How do I reach into the Event for this stuff?
-	dataStruct.Bands = inObj.Bands
-	dataStruct.PzAuth = inObj.PzAuth
-	outB, _ := json.Marshal(inObj)
-	return string(outB)
 }
 
 // TODO: currently, this is at best half-built.  It won't (and can't) be
@@ -110,15 +95,17 @@ func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) strin
 	qString := `"query": { "query": { "bool": { "filter": [` + pzsvc.SliceToCommaSep(queryFilters) + `] } } }`
 	condString := `"condition": { "eventtype_ids": ["` + trigData.EventTypeID + `"], ` + qString + ` }, `
 
-	// TODO: populate jobDataInpString!
-	// special note: should include layerGroupID - the ID of the geoserver layer group
-	//baseDatInpStr := `"body": { "content": "%s", "type": "urlparameter" }`
+	bfInpObj := &trigData.BFinpObj
+	bfInpObj.LGroupID = layerGroupID
 
 	// TODO: event only gives link to place to get geojson feature.  Will need to modify GenShoreline accordingly
+	//- figure out what you need to do to get a variable in place as the URL
+	//- put the event variable in place as MetaURL
 
-
-
-	jobDataInpString := `"dataInputs": {},`
+	b, _ := json.Marshal(bfInpObj)
+	datInpObj := struct{ Content string `json:"content"`; Type string `json:"type"` }{ string(b), "urlparameter" }
+	b2, _ := json.Marshal(datInpObj)
+	jobDataInpString := `"dataInputs": {"body": ` + string(b2) + ` },`
 	jobDataOutString := `"dataOutput": [ { "mimeType": "application/json", "type": "text" } ]`
 	jobDataString := `"serviceId": "` + trigData.ServiceID + `", ` + jobDataInpString + jobDataOutString
 
@@ -157,17 +144,19 @@ func NewProductLine (w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusBadRequest)
 		return
-	}	
-
-	if inpObj.PzAuth == "" {
-		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
 	}
 
-	if inpObj.DbAuth == "" {
-		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
+	bfInpObj := &inpObj.BFinpObj
+
+	if bfInpObj.PzAuth == "" {
+		bfInpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
 	}
 
-	layerID, err := pzsvc.AddGeoServerLayerGroup(inpObj.PzAddr, inpObj.PzAuth, &http.Client{})
+	if bfInpObj.DbAuth == "" {
+		bfInpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
+	}
+
+	layerID, err := pzsvc.AddGeoServerLayerGroup(bfInpObj.PzAddr, bfInpObj.PzAuth, &http.Client{})
 	if err != nil {
 		handleOut("Error: pzsvc.AddGeoServerLayerGroup: " + err.Error(), http.StatusBadRequest)
 		return
@@ -177,7 +166,7 @@ func NewProductLine (w http.ResponseWriter, r *http.Request) {
 
 	// TODO: once we can make a few test-runs and get a better idea of the shape of the
 	// response object, we may want to do something with them.
-	_, err = pzsvc.RequestKnownJSON("POST", outJSON, inpObj.PzAddr + `/trigger`, inpObj.PzAuth, &idObj, &http.Client{})
+	_, err = pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr + `/trigger`, bfInpObj.PzAuth, &idObj, &http.Client{})
 	if err != nil {
 		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusInternalServerError)
 		return
