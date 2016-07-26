@@ -8,9 +8,11 @@ bf-handle is relatively straightforward.  It can be installed via go install.  W
 
 bf-handle does not currently have an autoregistration feature.  To register the service to Piazza, please see appropriate piazza documentation.
 
-## Service Call Format
+## Service Call Format By Endpoint
 
-bf-handle accepts POST calls set up in x-www-form-urlencoded format, with the following form values:
+### bf-handle/execute
+
+bf-handle execute accepts POST calls set up in x-www-form-urlencoded format, with the following form values:
 
 "algoType": the type of the algorithm that you intend to call.  From this, we derive the necessary inputs and expected outputs.  Currently only supports "pzsvc-ossim".
 
@@ -26,4 +28,15 @@ bf-handle accepts POST calls set up in x-www-form-urlencoded format, with the fo
 
 "dbAuthToken": Overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any)
 
-bf-handle responds with a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, with a few additional pieces of metadata, noting when the source images were collected, what sensor platform collected them, what database the images were sourced from, and what the image ID was in that database.
+"bandMergeType": Supports optional bandmerge/rbg option.  The type/API of bandmerge service you intend to call.  If blank, will skip bandmerge.
+
+"bandMergeURL": Supports optional bandmerge/rbg option.  The URL of the bandmerge service.
+
+bf-handle responds with a json string including the following:
+- "shoreDataID": a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, with a few additional pieces of metadata, noting when the source images were collected, what sensor platform collected them, what database the images were sourced from, and what the image ID was in that database.
+
+- "shoreDeplID": a deployment ID for a layer in the geoserver instance associated with the targeted piazza instance, also containing the output data.
+
+- "rgbLoc": Piazza S3 bucket dataID for the results of the bandmerge algorithm (if requested)
+
+- "error": describes any errors that may have occurred during processing
