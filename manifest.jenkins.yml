@@ -2,7 +2,7 @@ applications:
 - name: bf-handle
   host: bf-handle
   command: chmod 755 ./bf-handle.bin && ./bf-handle.bin
-  buildpack: https://github.com/venicegeo/binary-buildpack
+  buildpack: https://github.com/venicegeo/binary-pzsvc-image-catalog-buildpack
   memory: 1G
   disk_quota: 2G
   instances: 1
