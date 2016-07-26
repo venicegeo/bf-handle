@@ -50,6 +50,7 @@ type gsInpStruct struct {
 
 type gsOutpStruct struct {
 	ShoreDataID	string			`json:"shoreDataID"`
+	ShoreDeplID	string			`json:"shoreDeplID"`
 	RGBloc		string			`json:"rgbLoc"`
 	Error		string			`json:"error"`
 }
@@ -122,7 +123,7 @@ func GenShoreline (w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println ("bf-handle: running Algo")
-	outpObj.ShoreDataID, err = runAlgo(inpObj, dataIDs)
+	outpObj.ShoreDataID, outpObj.ShoreDeplID, err = runAlgo(inpObj, dataIDs)
 	if err != nil{
 		handleOut("Error: algo result: " + err.Error(), http.StatusBadRequest)
 		return
@@ -183,8 +184,8 @@ fmt.Println ("provisioning: Ingest completed.")
 // file.  Right now, it doesn't have any algorithms to handle other than
 // pzsvc-ossim, but as that changes the case statement is going to get
 // bigger and uglier.
-func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, error) {
-	var dataID string
+func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, string, error) {
+	var dataID, deplID string
 	var attMap map[string]string
 	var err error
 	hasFeatMeta := false
@@ -192,42 +193,42 @@ func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, error) {
 	case "pzsvc-ossim":
 		attMap, err = getMeta("","","",inpObj.MetaJSON)
 		if err != nil {
-			return "", fmt.Errorf(`getMeta: %s`, err.Error())
+			return "", "", fmt.Errorf(`getMeta: %s`, err.Error())
 		}
 		dataID, err = runOssim (inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", fmt.Errorf(`runOssim: %s`, err.Error())
+			return "", "", fmt.Errorf(`runOssim: %s`, err.Error())
 		}
 //		hasFeatMeta = true  // Currently, Ossim does not have feature-level metadata after all.
 							// until/unless that's fixed, we need to treat them the same way we do
 							// everyone else.
 	default:
-		return "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
+		return "", "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
 
 	attMap, err = getMeta (dataID, inpObj.PzAddr, inpObj.PzAuth, inpObj.MetaJSON)
 	if err != nil{
-		return "", fmt.Errorf(`getMeta2: %s`, err.Error())
+		return "", "", fmt.Errorf(`getMeta2: %s`, err.Error())
 	}
 
 	if hasFeatMeta {
 		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap, &http.Client{})
 		if err != nil{
-			return "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
+			return "", "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
 		}
 	} else {
 		dataID, err = addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil{
-			return "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
+			return "", "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
 		}
 	}
 
-	_, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth, &http.Client{})
+	deplID, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth, &http.Client{})
 	if err != nil{
-		return "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
+		return "", "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
 
-	return dataID, nil
+	return dataID, deplID, nil
 }
 
 // runOssim does all of the things necessary to process the given images
