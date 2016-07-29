@@ -44,6 +44,7 @@ func main() {
 		case "/execute":
 			bf.GenShoreline (w,r)
 		case "/newProduct":
+			fmt.Println("newProduct triggered")
 			bf.NewProductLine (w,r)
 		default:
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")

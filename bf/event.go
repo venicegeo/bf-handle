@@ -43,6 +43,7 @@ type trigReqStruct struct {
 	SensorName	string		`json:"sensorName,omitempty"`
 	EventTypeID	string		`json:"eventTypeId,omitempty"`
 	ServiceID	string		`json:"serviceId,omitempty"`
+	Title		string		`json:"title,omitempty"`
 }
 
 // TODO: currently, this is at best half-built.  It won't (and can't) be
@@ -50,67 +51,77 @@ type trigReqStruct struct {
 // have figured out a format for the trigReqStruct object.
 func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) string {
 
-	queryFilters := make([]string, 10)
+	queryFilters := []string(nil)
 	if trigData.SensorName != "" {
-		qString := `{ "match": { "SensorName" : "` + trigData.SensorName + `" } }`
+		qString := `{"match":{"SensorName":"` + trigData.SensorName + `"}}`
 		queryFilters = append(queryFilters, qString)
 	}
 	if trigData.CloudCover != "" {
-		qString := `{"range": {"cloudCover": {"lte":"` + trigData.CloudCover + `"}}}`
+		qString := `{"range":{"cloudCover":{"lte":` + trigData.CloudCover + `}}}`
 		queryFilters = append(queryFilters, qString)
 	}
 	if trigData.MaxX != "" {
-		qString := `{"range": {"MinX": {"lte":"` + trigData.MaxX + `"}}}`
+		qString := `{"range":{"MinX":{"lte":` + trigData.MaxX + `}}}`
 		queryFilters = append(queryFilters, qString)
 	}
 	if trigData.MinX != "" {
-		qString := `{"range": {"MaxX": {"gte":"` + trigData.MinX + `"}}}`
+		qString := `{"range":{"MaxX":{"gte":` + trigData.MinX + `}}}`
 		queryFilters = append(queryFilters, qString)
 	}
 	if trigData.MaxY != "" {
-		qString := `{"range": {"MinY": {"lte":"` + trigData.MaxY + `"}}}`
+		qString := `{"range":{"MinY":{"lte":` + trigData.MaxY + `}}}`
 		queryFilters = append(queryFilters, qString)
 	}
 	if trigData.MinY != "" {
-		qString := `{"range": {"MaxY": {"gte":"` + trigData.MinY + `"}}}`
-		queryFilters = append(queryFilters, qString)
-	}
-	if trigData.MaxRes != "" {
-		qString := `{"range": {"resolution": {"lte":"` + trigData.MaxRes + `"}}}`
-		queryFilters = append(queryFilters, qString)
-	}
-	if trigData.MinRes != "" {
-		qString := `{"range": {"resolution": {"gte":"` + trigData.MinRes + `"}}}`
-		queryFilters = append(queryFilters, qString)
-	}
-	if trigData.MaxDate != "" {
-		qString := `{"range": {"acquiredDate": {"lte":"` + trigData.MaxDate + `"}}}`
-		queryFilters = append(queryFilters, qString)
-	}
-	if trigData.MinDate != "" {
-		qString := `{"range": {"acquiredDate": {"gte":"` + trigData.MinDate + `"}}}`
+		qString := `{"range":{"MaxY":{"gte":` + trigData.MinY + `}}}`
 		queryFilters = append(queryFilters, qString)
 	}
 
-	qString := `"query": { "query": { "bool": { "filter": [` + pzsvc.SliceToCommaSep(queryFilters) + `] } } }`
-	condString := `"condition": { "eventtype_ids": ["` + trigData.EventTypeID + `"], ` + qString + ` }, `
+	resCheck := []string(nil)
+	if trigData.MaxRes != "" {
+		resCheck = append(resCheck, `"lte":"` + trigData.MaxRes + `"`)
+	}
+	if trigData.MinRes != "" {
+		resCheck = append(resCheck, `"gte":"` + trigData.MinRes + `"`)
+	}
+	if resCheck != nil {
+		qString := `{"range":{"resolution":{` + pzsvc.SliceToCommaSep(resCheck) + `}}}`
+		queryFilters = append(queryFilters, qString)
+	}
+
+	timeCheck := ""
+	if trigData.MaxRes != "" {
+		timeCheck = timeCheck + `"lte":"` + trigData.MaxDate + `",`
+	}
+	if trigData.MinRes != "" {
+		timeCheck = timeCheck + `"gte":"` + trigData.MinDate + `",`
+	}
+	if timeCheck != "" {
+		qString := `{"range":{"acquiredDate":{` + timeCheck + `"format":"yyyy-MM-dd'T'HH:mm:ssZZ"}}}`
+		queryFilters = append(queryFilters, qString)
+	}
+
+	qString := `"query":{"query":{"bool":{"filter":[` + pzsvc.SliceToCommaSep(queryFilters) + `]}}}`
+	condString := `"condition":{"eventTypeIds":["` + trigData.EventTypeID + `"],` + qString + `},`
 
 	bfInpObj := &trigData.BFinpObj
 	bfInpObj.LGroupID = layerGroupID
-
-	// TODO: event only gives link to place to get geojson feature.  Will need to modify GenShoreline accordingly
-	//- figure out what you need to do to get a variable in place as the URL
-	//- put the event variable in place as MetaURL
+	bfInpObj.MetaURL = "$link"
 
 	b, _ := json.Marshal(bfInpObj)
-	datInpObj := struct{ Content string `json:"content"`; Type string `json:"type"` }{ string(b), "urlparameter" }
-	b2, _ := json.Marshal(datInpObj)
-	jobDataInpString := `"dataInputs": {"body": ` + string(b2) + ` },`
-	jobDataOutString := `"dataOutput": [ { "mimeType": "application/json", "type": "text" } ]`
-	jobDataString := `"serviceId": "` + trigData.ServiceID + `", ` + jobDataInpString + jobDataOutString
 
-	jobString := `"job":{ "userName": "", "jobType": { "type": "execute-service", "data": {` + jobDataString + `} } }`
-	totalString := `{"id":"", "title": "", ` + condString + jobString + `}`
+	type datInpType struct{ Content string `json:"content"`; Type string `json:"type"`; MimeType string `json:"mimeType"` }
+
+	datInpObj := datInpType{ string(b), "text", "application/json" }
+	
+	b2, _ := json.Marshal(datInpObj)
+
+	jobDataInpString := `"dataInputs":{"body":` + string(b2) + `},`
+	jobDataOutString := `"dataOutput":[{"mimeType":"application/json","type":"text"}]`
+	jobDataString := `"serviceId":"` + trigData.ServiceID + `",` + jobDataInpString + jobDataOutString
+
+	jobString := `"job":{"jobType":{"type":"execute-service","data":{` + jobDataString + `}}}`
+	totalString := `{"title":"` + trigData.Title + `","enabled":true,` + condString + jobString + `}`
 
 	return totalString
 }
@@ -119,28 +130,38 @@ func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) strin
 func NewProductLine (w http.ResponseWriter, r *http.Request) {
 
 	var inpObj trigReqStruct
-	var outpObj struct {
-		TriggerID	string	`json:"triggerId,omitempty"`
-		LayerID		string	`json:"triggerId,omitempty"`
-		Error		string	`json:"triggerId,omitempty"`
+	type outpType struct {
+		TriggerID	string	`json:"triggerId"`
+		LayerID		string	`json:"layerId"`
+		Error		string	`json:"error"`
 	}
-	var idObj struct {
-		ID			string	`json:"id,omitempty"`
+
+	type newTrigData struct {
+		ID			string	`json:"triggerId"`
 	}
+	type newTrigOut struct {
+		StatusCode	int			`json:"statusCode"`
+		Data		newTrigData	`json:"data"`
+	}
+
+
+	outpObj := outpType{}
+	idObj := newTrigOut{}
 
 	// handleOut is a subfunction for making sure that the output is
 	// handled in a consistent manner.
 	handleOut := func (errmsg string, status int) {
 		outpObj.Error = errmsg
 		b, err := json.Marshal(outpObj)
+fmt.Println(string(b))
 		if err != nil {
-			fmt.Fprintf(w, `{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
+			b = []byte(`{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
 		}
 		http.Error(w, string(b), status)
 		return
 	}
 
-	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
+	b2, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
 		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusBadRequest)
 		return
@@ -163,16 +184,24 @@ func NewProductLine (w http.ResponseWriter, r *http.Request) {
 	}
 
 	outJSON := buildTriggerRequestJSON(inpObj, layerID)
+fmt.Println(outJSON)
 
 	// TODO: once we can make a few test-runs and get a better idea of the shape of the
 	// response object, we may want to do something with them.
-	_, err = pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr + `/trigger`, bfInpObj.PzAuth, &idObj, &http.Client{})
+	b2, err = pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr + `/trigger`, bfInpObj.PzAuth, &idObj, &http.Client{})
 	if err != nil {
-		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusInternalServerError)
+		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".  http Error: " + string(b2), http.StatusInternalServerError)
 		return
 	}
 
-	outpObj.TriggerID = idObj.ID
+	outpObj.TriggerID = idObj.Data.ID
+fmt.Println("idObj.ID: " + idObj.Data.ID)
+
+b3, _ := json.Marshal(outpObj)
+fmt.Println(string(b3))
+
+	handleOut("", http.StatusOK)
+fmt.Println("NewProductLine finished")
 
 }
 
