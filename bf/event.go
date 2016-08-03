@@ -43,7 +43,7 @@ type trigReqStruct struct {
 	SensorName	string		`json:"sensorName,omitempty"`
 	EventTypeID	string		`json:"eventTypeId,omitempty"`
 	ServiceID	string		`json:"serviceId,omitempty"`
-	Title		string		`json:"title,omitempty"`
+	Name		string		`json:"name,omitempty"`
 }
 
 // TODO: currently, this is at best half-built.  It won't (and can't) be
@@ -121,7 +121,7 @@ func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) strin
 	jobDataString := `"serviceId":"` + trigData.ServiceID + `",` + jobDataInpString + jobDataOutString
 
 	jobString := `"job":{"jobType":{"type":"execute-service","data":{` + jobDataString + `}}}`
-	totalString := `{"title":"` + trigData.Title + `","enabled":true,` + condString + jobString + `}`
+	totalString := `{"name":"` + trigData.Name + `","enabled":true,` + condString + jobString + `}`
 
 	return totalString
 }
