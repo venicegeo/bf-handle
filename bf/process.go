@@ -253,9 +253,9 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 							Client:&http.Client{}}
 
 
-	outMap, err := pzsvc.CallPzsvcExec(&inpObj)
+	outStruct, err := pzsvc.CallPzsvcExec(&inpObj)
 	if err != nil {
 		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
 	}
-	return outMap[geoJName], nil
+	return outStruct.OutFiles[geoJName], nil
 }

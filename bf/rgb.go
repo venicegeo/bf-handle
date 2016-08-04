@@ -55,12 +55,16 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 								AuthKey:inpObj.PzAuth,
 								Client:client}
 
-		outMap, err := pzsvc.CallPzsvcExec(&execObj)
+		outStruct, err := pzsvc.CallPzsvcExec(&execObj)
 		if err != nil {
 			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: %s`, err.Error())
 			return
 		}
-		fileID = outMap[outFName]
+		fileID = outStruct.OutFiles[outFName]
+		if fileID == "" {
+			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: No Outfile.  Pzsvc-exec errors: %s`, err.Error())
+			return			
+		}
 		fmt.Println("RGB fileId: " + fileID)
 
 	default:
