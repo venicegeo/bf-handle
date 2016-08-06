@@ -46,84 +46,86 @@ type trigReqStruct struct {
 	Name		string		`json:"name,omitempty"`
 }
 
-// TODO: currently, this is at best half-built.  It won't (and can't) be
-// finalized until we have an actual format for the incoming events, and
-// have figured out a format for the trigReqStruct object.
 func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) string {
 
-	queryFilters := []string(nil)
+	var trigObj TrigStruct
+	trigObj.Name = trigData.Name
+	trigObj.Enabled = true
+	trigObj.Condition.EventTypeIDs = []string{trigData.EventTypeID}
+
+	queryFilters := []QueryClause{}
 	if trigData.SensorName != "" {
-		qString := `{"match":{"SensorName":"` + trigData.SensorName + `"}}`
-		queryFilters = append(queryFilters, qString)
+		sensorMatch := map[string]string{"SensorName":trigData.SensorName}
+		queryFilters = append(queryFilters, QueryClause{ sensorMatch, nil })
 	}
 	if trigData.CloudCover != "" {
-		qString := `{"range":{"cloudCover":{"lte":` + trigData.CloudCover + `}}}`
-		queryFilters = append(queryFilters, qString)
+		cClause := CompClause{trigData.CloudCover, nil, ""}
+		cloudRange := map[string]CompClause{"cloudCover":cClause}
+		queryFilters = append(queryFilters, QueryClause{nil, cloudRange})
 	}
 	if trigData.MaxX != "" {
-		qString := `{"range":{"MinX":{"lte":` + trigData.MaxX + `}}}`
-		queryFilters = append(queryFilters, qString)
+		cClause := CompClause{trigData.MaxX, nil, ""}
+		XRange := map[string]CompClause{"MinX":cClause}
+		queryFilters = append(queryFilters, QueryClause{nil, XRange})
 	}
 	if trigData.MinX != "" {
-		qString := `{"range":{"MaxX":{"gte":` + trigData.MinX + `}}}`
-		queryFilters = append(queryFilters, qString)
+		cClause := CompClause{nil, trigData.MinX, ""}
+		XRange := map[string]CompClause{"MaxX":cClause}
+		queryFilters = append(queryFilters, QueryClause{nil, XRange})
 	}
 	if trigData.MaxY != "" {
-		qString := `{"range":{"MinY":{"lte":` + trigData.MaxY + `}}}`
-		queryFilters = append(queryFilters, qString)
+		cClause := CompClause{trigData.MaxY, nil, ""}
+		YRange := map[string]CompClause{"MinY":cClause}
+		queryFilters = append(queryFilters, QueryClause{nil, YRange})
 	}
 	if trigData.MinY != "" {
-		qString := `{"range":{"MaxY":{"gte":` + trigData.MinY + `}}}`
-		queryFilters = append(queryFilters, qString)
+		cClause := CompClause{nil, trigData.MinY, ""}
+		YRange := map[string]CompClause{"MaxY":cClause}
+		queryFilters = append(queryFilters, QueryClause{nil, YRange})
 	}
 
-	resCheck := []string(nil)
-	if trigData.MaxRes != "" {
-		resCheck = append(resCheck, `"lte":"` + trigData.MaxRes + `"`)
-	}
-	if trigData.MinRes != "" {
-		resCheck = append(resCheck, `"gte":"` + trigData.MinRes + `"`)
-	}
-	if resCheck != nil {
-		qString := `{"range":{"resolution":{` + pzsvc.SliceToCommaSep(resCheck) + `}}}`
-		queryFilters = append(queryFilters, qString)
-	}
-
-	timeCheck := ""
-	if trigData.MaxRes != "" {
-		timeCheck = timeCheck + `"lte":"` + trigData.MaxDate + `",`
-	}
-	if trigData.MinRes != "" {
-		timeCheck = timeCheck + `"gte":"` + trigData.MinDate + `",`
-	}
-	if timeCheck != "" {
-		qString := `{"range":{"acquiredDate":{` + timeCheck + `"format":"yyyy-MM-dd'T'HH:mm:ssZZ"}}}`
-		queryFilters = append(queryFilters, qString)
+	if trigData.MaxRes != "" || trigData.MinRes != "" {
+		resClause := CompClause{nil, nil, ""}
+		if trigData.MaxRes != "" {
+			resClause.LTE = trigData.MaxRes
+		}
+		if trigData.MinRes != "" {
+			resClause.GTE = trigData.MinRes
+		}
+		resFilter := map[string]CompClause{"resolution":resClause}
+		queryFilters = append(queryFilters, QueryClause{nil, resFilter})
 	}
 
-	qString := `"query":{"query":{"bool":{"filter":[` + pzsvc.SliceToCommaSep(queryFilters) + `]}}}`
-	condString := `"condition":{"eventTypeIds":["` + trigData.EventTypeID + `"],` + qString + `},`
+	if trigData.MaxDate != "" || trigData.MinDate != "" {
+		dateClause := CompClause{nil, nil, "yyyy-MM-dd'T'HH:mm:ssZZ"}
+		if trigData.MaxDate != "" {
+			dateClause.LTE = trigData.MaxDate
+		}
+		if trigData.MinDate != "" {
+			dateClause.GTE = trigData.MinDate
+		}
+		dateFilter := map[string]CompClause{"acquiredDate":dateClause}
+		queryFilters = append(queryFilters, QueryClause{nil, dateFilter})
+	}
+
+	trigObj.Condition.Query.Query.Bool.Filter = queryFilters
+
+
+	trigObj.Job.JobType.Type = "execute-service"
 
 	bfInpObj := &trigData.BFinpObj
 	bfInpObj.LGroupID = layerGroupID
 	bfInpObj.MetaURL = "$link"
-
 	b, _ := json.Marshal(bfInpObj)
 
-	type datInpType struct{ Content string `json:"content"`; Type string `json:"type"`; MimeType string `json:"mimeType"` }
+	jobInpObj := JobTypeInterface{ string(b), "text", "application/json" }
+	jobOutpObj := JobTypeInterface{"", "text", "application/json"}
+	jobIntMap := map[string]JobTypeInterface{"body":jobInpObj}
+	trigObj.Job.JobType.Data = JobData{trigData.ServiceID, jobIntMap, []JobTypeInterface{jobOutpObj}}
 
-	datInpObj := datInpType{ string(b), "text", "application/json" }
-	
-	b2, _ := json.Marshal(datInpObj)
 
-	jobDataInpString := `"dataInputs":{"body":` + string(b2) + `},`
-	jobDataOutString := `"dataOutput":[{"mimeType":"application/json","type":"text"}]`
-	jobDataString := `"serviceId":"` + trigData.ServiceID + `",` + jobDataInpString + jobDataOutString
-
-	jobString := `"job":{"jobType":{"type":"execute-service","data":{` + jobDataString + `}}}`
-	totalString := `{"name":"` + trigData.Name + `","enabled":true,` + condString + jobString + `}`
-
-	return totalString
+	b2, _ := json.Marshal(trigObj)
+	return string(b2)
 }
 
 // NewProductLine ....

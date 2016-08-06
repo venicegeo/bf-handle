@@ -15,12 +15,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	
 	"github.com/venicegeo/bf-handle/bf"
+	"github.com/venicegeo/pzsvc-lib"
 )
 
 func main() {
@@ -43,9 +45,43 @@ func main() {
 			fmt.Fprintf(w, "hello.")
 		case "/execute":
 			bf.GenShoreline (w,r)
-		case "/newProduct":
+		case "/newProductLine":
 			fmt.Println("newProduct triggered")
 			bf.NewProductLine (w,r)
+		case "/getProductLines":
+			fmt.Println("product line listing")
+		case "/listProdLineJobs":
+			// extract trigger Id, number per page, and page length
+			// search alerts by trigger Id, order by createdOn, demarshal to list of appropriate objects
+			// build list of jobIDs
+			// return appropriate object
+			type PljStruct struct {
+				TriggerID	string
+				PerPage		int
+				PageNo		int
+				PzAddr		string
+				PzAuth		string
+			}
+			var inpObj PljStruct
+
+			if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
+				http.Error(w, `{"Errors": "pzsvc.ReadBodyJSON: ` + err.Error() + `.",  "Input String":"` + string(b) + `"}`, http.StatusBadRequest)
+				return
+			}
+
+			alertList, err := pzsvc.GetAlerts(inpObj.PerPage, inpObj.PageNo, inpObj.TriggerID, inpObj.PzAddr, inpObj.PzAuth)
+			if err != nil {
+				http.Error(w, `{"Errors": "pzsvc.GetAlerts: ` + err.Error() + `"}`, http.StatusBadRequest)
+				return
+			}
+			outJobs := []string(nil)
+			for _, alert := range alertList {
+				outJobs = append(outJobs, alert.JobID)
+			}
+			b, _ := json.Marshal(outJobs)
+
+			http.Error(w, string(b), http.StatusOK)
+
 		default:
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")
 		}
