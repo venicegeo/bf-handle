@@ -17,7 +17,6 @@ package bf
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
 	
 	"github.com/venicegeo/pzsvc-lib"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -32,7 +31,7 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 	attMap := make(map[string]string)
 
 	if dataID != "" {
-		dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth, &http.Client{})
+		dataRes, err := pzsvc.GetFileMeta(dataID, pzAddr, pzAuth)
 		if err != nil {
 			return nil, err
 		}
@@ -57,8 +56,7 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 // all fo the features in the file and adds the given properties to each, before uploading
 // the file that results and returning the dataId from that upload. 
 func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (string, error) {
-	client := &http.Client{}
-	b, err := pzsvc.DownloadBytes(dataID, pzAddr, pzAuth, client)
+	b, err := pzsvc.DownloadBytes(dataID, pzAddr, pzAuth)
 	var obj geojson.FeatureCollection
 	err = json.Unmarshal(b, &obj)
 	if err != nil {
@@ -80,7 +78,7 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 	source := props["algoName"]
 	version := props["version"]
 
-	dataID, err = pzsvc.Ingest( fName, "geojson", pzAddr, source, version, pzAuth, b2, props, client)
+	dataID, err = pzsvc.Ingest( fName, "geojson", pzAddr, source, version, pzAuth, b2, props)
 
 	return dataID, err
 }

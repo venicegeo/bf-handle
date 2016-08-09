@@ -94,7 +94,7 @@ func GenShoreline (w http.ResponseWriter, r *http.Request) {
 	}
 
 	if inpObj.MetaURL != "" {
-		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON, &http.Client{}); err != nil {
+		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
 			handleOut("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error(), http.StatusBadRequest)
 			return			
 		}
@@ -169,7 +169,7 @@ fmt.Println ("provisioning: Beginning " + band + " band.")
 fmt.Println ("provisioning: Bytes acquired.  Beginning ingest.")
 		// TODO: at some point, we might wish to add properties to the TIFF files as we ingest them.
 		// We'd do that by replacing the "nil", below, with an appropriate map[string]string.
-		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil, &http.Client{})
+		dataID, err := pzsvc.Ingest(fName, "raster", inpObj.PzAddr, fSource, "", inpObj.PzAuth, bSlice, nil)
 		if err != nil {
 			return nil, fmt.Errorf(`pzsvc.Ingest: %s`, err.Error())
 		}
@@ -212,7 +212,7 @@ func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, string, error) {
 	}
 
 	if hasFeatMeta {
-		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap, &http.Client{})
+		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil{
 			return "", "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
 		}
@@ -223,7 +223,7 @@ func runAlgo( inpObj gsInpStruct, dataIDs []string) (string, string, error) {
 		}
 	}
 
-	deplID, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth, &http.Client{})
+	deplID, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth)
 	if err != nil{
 		return "", "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
@@ -249,8 +249,7 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string 
 							OutGeoTIFF:nil,
 							OutTxt:nil,
 							AlgoURL:algoURL,
-							AuthKey:authKey,
-							Client:&http.Client{}}
+							AuthKey:authKey}
 
 
 	outStruct, err := pzsvc.CallPzsvcExec(&inpObj)

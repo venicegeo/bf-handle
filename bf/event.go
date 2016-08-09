@@ -17,99 +17,111 @@ package bf
 import (
 	"encoding/json"
 	"fmt"
-//	"io/ioutil"
-//	"log"
+	//	"io/ioutil"
+	//	"log"
 	"net/http"
 	"os"
-//	"time"
+	//	"time"
 
 	"github.com/venicegeo/pzsvc-lib"
-//	"github.com/venicegeo/geojson-go/geojson"
-//	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	//	"github.com/venicegeo/geojson-go/geojson"
+	//	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
 type trigReqStruct struct {
-
-	BFinpObj	gsInpStruct	`json:"bfInputJSON,omitempty"`	
-	MaxX		string		`json:"maxX,omitempty"`
-	MinX		string		`json:"minX,omitempty"`
-	MaxY		string		`json:"maxY,omitempty"`
-	MinY		string		`json:"minY,omitempty"`
-	CloudCover	string		`json:"cloudCover,omitempty"`
-	MaxRes		string		`json:"maxRes,omitempty"`
-	MinRes		string		`json:"minRes,omitempty"`
-	MaxDate		string		`json:"maxDate,omitempty"`
-	MinDate		string		`json:"mainDate,omitempty"`
-	SensorName	string		`json:"sensorName,omitempty"`
-	EventTypeID	string		`json:"eventTypeId,omitempty"`
-	ServiceID	string		`json:"serviceId,omitempty"`
-	Name		string		`json:"name,omitempty"`
+	BFinpObj    gsInpStruct `json:"bfInputJSON,omitempty"`
+	MaxX        string      `json:"maxX,omitempty"`
+	MinX        string      `json:"minX,omitempty"`
+	MaxY        string      `json:"maxY,omitempty"`
+	MinY        string      `json:"minY,omitempty"`
+	CloudCover  string      `json:"cloudCover,omitempty"`
+	MaxRes      string      `json:"maxRes,omitempty"`
+	MinRes      string      `json:"minRes,omitempty"`
+	MaxDate     string      `json:"maxDate,omitempty"`
+	MinDate     string      `json:"mainDate,omitempty"`
+	SensorName  string      `json:"sensorName,omitempty"`
+	EventTypeID string      `json:"eventTypeId,omitempty"`
+	ServiceID   string      `json:"serviceId,omitempty"`
+	Name        string      `json:"name,omitempty"`
 }
 
-func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) string {
+/*
+- Format for the feeding EventType?
+--- "imageID":"string"
+--- "acquiredDate":"string"
+--- "cloudCover":"long"
+--- "resolution":"long"
+--- "sensorName":"string"
+--- "minx":"long"
+--- "miny":"long"
+--- "maxx":"long"
+--- "maxy":"long"
+--- "link":"string"
+*/
 
-	var trigObj TrigStruct
+func buildTriggerRequestJSON(trigData trigReqStruct, layerGroupID string) string {
+
+	var trigObj pzsvc.Trigger
 	trigObj.Name = trigData.Name
 	trigObj.Enabled = true
 	trigObj.Condition.EventTypeIDs = []string{trigData.EventTypeID}
 
-	queryFilters := []QueryClause{}
+	queryFilters := []pzsvc.QueryClause{}
 	if trigData.SensorName != "" {
-		sensorMatch := map[string]string{"SensorName":trigData.SensorName}
-		queryFilters = append(queryFilters, QueryClause{ sensorMatch, nil })
+		sensorMatch := map[string]string{"SensorName": trigData.SensorName}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: sensorMatch, Range: nil})
 	}
 	if trigData.CloudCover != "" {
-		cClause := CompClause{trigData.CloudCover, nil, ""}
-		cloudRange := map[string]CompClause{"cloudCover":cClause}
-		queryFilters = append(queryFilters, QueryClause{nil, cloudRange})
+		cClause := pzsvc.CompClause{LTE: trigData.CloudCover, GTE: nil, Format: ""}
+		cloudRange := map[string]pzsvc.CompClause{"cloudCover": cClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: cloudRange})
 	}
 	if trigData.MaxX != "" {
-		cClause := CompClause{trigData.MaxX, nil, ""}
-		XRange := map[string]CompClause{"MinX":cClause}
-		queryFilters = append(queryFilters, QueryClause{nil, XRange})
+		cClause := pzsvc.CompClause{LTE: trigData.MaxX, GTE: nil, Format: ""}
+		XRange := map[string]pzsvc.CompClause{"MinX": cClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	if trigData.MinX != "" {
-		cClause := CompClause{nil, trigData.MinX, ""}
-		XRange := map[string]CompClause{"MaxX":cClause}
-		queryFilters = append(queryFilters, QueryClause{nil, XRange})
+		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinX, Format: ""}
+		XRange := map[string]pzsvc.CompClause{"MaxX": cClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	if trigData.MaxY != "" {
-		cClause := CompClause{trigData.MaxY, nil, ""}
-		YRange := map[string]CompClause{"MinY":cClause}
-		queryFilters = append(queryFilters, QueryClause{nil, YRange})
+		cClause := pzsvc.CompClause{LTE: trigData.MaxY, GTE: nil, Format: ""}
+		YRange := map[string]pzsvc.CompClause{"MinY": cClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 	if trigData.MinY != "" {
-		cClause := CompClause{nil, trigData.MinY, ""}
-		YRange := map[string]CompClause{"MaxY":cClause}
-		queryFilters = append(queryFilters, QueryClause{nil, YRange})
+		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinY, Format: ""}
+		YRange := map[string]pzsvc.CompClause{"MaxY": cClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 
 	if trigData.MaxRes != "" || trigData.MinRes != "" {
-		resClause := CompClause{nil, nil, ""}
+		resClause := pzsvc.CompClause{LTE: nil, GTE: nil, Format: ""}
 		if trigData.MaxRes != "" {
 			resClause.LTE = trigData.MaxRes
 		}
 		if trigData.MinRes != "" {
 			resClause.GTE = trigData.MinRes
 		}
-		resFilter := map[string]CompClause{"resolution":resClause}
-		queryFilters = append(queryFilters, QueryClause{nil, resFilter})
+		resFilter := map[string]pzsvc.CompClause{"resolution": resClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: resFilter})
 	}
 
 	if trigData.MaxDate != "" || trigData.MinDate != "" {
-		dateClause := CompClause{nil, nil, "yyyy-MM-dd'T'HH:mm:ssZZ"}
+		dateClause := pzsvc.CompClause{LTE: nil, GTE: nil, Format: "yyyy-MM-dd'T'HH:mm:ssZZ"}
 		if trigData.MaxDate != "" {
 			dateClause.LTE = trigData.MaxDate
 		}
 		if trigData.MinDate != "" {
 			dateClause.GTE = trigData.MinDate
 		}
-		dateFilter := map[string]CompClause{"acquiredDate":dateClause}
-		queryFilters = append(queryFilters, QueryClause{nil, dateFilter})
+		dateFilter := map[string]pzsvc.CompClause{"acquiredDate": dateClause}
+		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: dateFilter})
 	}
 
 	trigObj.Condition.Query.Query.Bool.Filter = queryFilters
-
 
 	trigObj.Job.JobType.Type = "execute-service"
 
@@ -118,54 +130,38 @@ func buildTriggerRequestJSON (trigData trigReqStruct, layerGroupID string) strin
 	bfInpObj.MetaURL = "$link"
 	b, _ := json.Marshal(bfInpObj)
 
-	jobInpObj := JobTypeInterface{ string(b), "text", "application/json" }
-	jobOutpObj := JobTypeInterface{"", "text", "application/json"}
-	jobIntMap := map[string]JobTypeInterface{"body":jobInpObj}
-	trigObj.Job.JobType.Data = JobData{trigData.ServiceID, jobIntMap, []JobTypeInterface{jobOutpObj}}
-
+	jobInpObj := pzsvc.DataType{Content: string(b), Type: "text", MimeType: "application/json"}
+	jobOutpObj := pzsvc.DataType{Content: "", Type: "text", MimeType: "application/json"}
+	jobIntMap := map[string]pzsvc.DataType{"body": jobInpObj}
+	trigObj.Job.JobType.Data = pzsvc.JobData{ServiceID: trigData.ServiceID, DataInputs: jobIntMap, DataOutput: []pzsvc.DataType{jobOutpObj}}
 
 	b2, _ := json.Marshal(trigObj)
 	return string(b2)
 }
 
 // NewProductLine ....
-func NewProductLine (w http.ResponseWriter, r *http.Request) {
+func NewProductLine(w http.ResponseWriter, r *http.Request) {
 
-	var inpObj trigReqStruct
 	type outpType struct {
-		TriggerID	string	`json:"triggerId"`
-		LayerID		string	`json:"layerId"`
-		Error		string	`json:"error"`
+		TriggerID string `json:"triggerId"`
+		LayerID   string `json:"layerId"`
 	}
 
 	type newTrigData struct {
-		ID			string	`json:"triggerId"`
+		ID string `json:"triggerId"`
 	}
 	type newTrigOut struct {
-		StatusCode	int			`json:"statusCode"`
-		Data		newTrigData	`json:"data"`
+		StatusCode int         `json:"statusCode"`
+		Data       newTrigData `json:"data"`
 	}
 
-
+	inpObj := trigReqStruct{}
 	outpObj := outpType{}
 	idObj := newTrigOut{}
 
-	// handleOut is a subfunction for making sure that the output is
-	// handled in a consistent manner.
-	handleOut := func (errmsg string, status int) {
-		outpObj.Error = errmsg
-		b, err := json.Marshal(outpObj)
-fmt.Println(string(b))
-		if err != nil {
-			b = []byte(`{"error":"json.Marshal error: `+err.Error()+`", "baseError":"`+errmsg+`"}`)
-		}
-		http.Error(w, string(b), status)
-		return
-	}
-
-	b2, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
+	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
-		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error(), http.StatusBadRequest)
+		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error(), outpObj, http.StatusBadRequest)
 		return
 	}
 
@@ -179,76 +175,99 @@ fmt.Println(string(b))
 		bfInpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	layerID, err := pzsvc.AddGeoServerLayerGroup(bfInpObj.PzAddr, bfInpObj.PzAuth, &http.Client{})
+	layerID, err := pzsvc.AddGeoServerLayerGroup(bfInpObj.PzAddr, bfInpObj.PzAuth)
 	if err != nil {
-		handleOut("Error: pzsvc.AddGeoServerLayerGroup: " + err.Error(), http.StatusBadRequest)
+		handleOut(w, "Error: pzsvc.AddGeoServerLayerGroup: "+err.Error(), outpObj, http.StatusBadRequest)
 		return
 	}
 
 	outJSON := buildTriggerRequestJSON(inpObj, layerID)
-fmt.Println(outJSON)
+	fmt.Println(outJSON)
 
 	// TODO: once we can make a few test-runs and get a better idea of the shape of the
 	// response object, we may want to do something with them.
-	b2, err = pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr + `/trigger`, bfInpObj.PzAuth, &idObj, &http.Client{})
+	b, err := pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr+`/trigger`, bfInpObj.PzAuth, &idObj)
 	if err != nil {
-		handleOut("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".  http Error: " + string(b2), http.StatusInternalServerError)
+		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
 		return
 	}
 
 	outpObj.TriggerID = idObj.Data.ID
-fmt.Println("idObj.ID: " + idObj.Data.ID)
+	fmt.Println("idObj.ID: " + idObj.Data.ID)
 
-b3, _ := json.Marshal(outpObj)
-fmt.Println(string(b3))
+	b3, _ := json.Marshal(outpObj)
+	fmt.Println(string(b3))
 
-	handleOut("", http.StatusOK)
-fmt.Println("NewProductLine finished")
+	handleOut(w, "", outpObj, http.StatusOK)
+	fmt.Println("NewProductLine finished")
 
 }
 
-/*
+// GetTriggers responds to a properly formed network request
+// by sending out a list of triggers in JSON format.
+func GetTriggers(w http.ResponseWriter, r *http.Request) {
 
-Things needed:
-- knowing the format for the data inputs (defined by the "create trigger" API).
---- BLOCKED: waiting on official Pz documentation
-- knowing the format for the incoming data (defined by the Event and Event Type that Jeff's putting together).
---- BLOCKED: Jeff still having trouble actually putting it together
-- buildTrigFuncData: specifying where to find the image catalog data
---- BLOCKED: on both of the previous two
-- NewProductLine: creating it, sending it where it needs to go, returning it
---- BLOCKED: no "establish Geoserver layer" call to make.
-- buildTriggerRequestJSON: fitting it into the request Json properly
---- BLOCKED (mostly): not entirely clear ont eh input formats, dont' have the inputs on the other end,
-	messy to do without the NewProductLine part done first.
-- bf-handle main and GenShoreline: set up uploads to Geoserver, assigning to appropriate layers
---- BLOCKED: no way to assign to specific layers yet.  
-- Once we have it all more or less put together, look at cleaning up the input struct.
+	var inpObj struct {
+		EventTypeID string `json:"eventTypeId"`
+		ServiceID   string `json:"serviceId"`
+		CreatedBy   string `json:"createdBy"`
+		PageNo      int    `json:"pageNo"`
+		PerPage     int    `json:"perPage"`
+		PzAddr      string `json:"pzAddr"`
+		PzAuth      string `json:"pzAuth"`
+		Order       string `json:"order"`
+		SortBy      string `json:"sortBy"`
+	}
 
+	var outpObj struct {
+		TrigList []trigReqStruct `json:"triggerList"`
+	}
 
+	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
+	if err != nil {
+		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error(), outpObj, http.StatusBadRequest)
+		return
+	}
 
-Pertinent Questions:
-- PercolationID - what is it?
---- it's the ID of the condition in the condition list.  Each time new trigger is added, condition is
-	added to condition list. Each time event fires, is compared to each condition in list.  If gets a
-	bit, uses PercolationID to find trigger.
+	if inpObj.PzAuth == "" {
+		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
+	}
 
-- Are we manually specifying CreatedBy?  Seems like that would be automated, based on whose auth was used
---- ???
+	// set up output obj.
+	// set up input obj.
 
-- What is the format for the feeding EventType?
---- "imageID":"string"
---- "acquiredDate":"string"
---- "cloudCover":"long"
---- "resolution":"long"
---- "sensorName":"string"
---- "minx":"long"
---- "miny":"long"
---- "maxx":"long"
---- "maxy":"long"
---- "link":"string"
+	/*
+		b, err := pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr + `/trigger`, bfInpObj.PzAuth, &idObj, &http.Client{})
+		if err != nil {
+			handleOut(w, "Error: pzsvc.ReadBodyJSON: " + err.Error() + ".  http Error: " + string(b), outpObj, http.StatusInternalServerError)
+			return
+		}
+	*/
 
+	// request all triggers by EventTypeID/pageNo/perPage
+	// demarshal and break down into list of trigger objects
+	// large for range triggerList loop
+	// - filter out any triggers that don't belong based on searched list
+	// --- keep them simple.  EventTypeId, ServiceId, CreatedBy.  Should be plenty to start.
+	// - break it back down into a trigReqStruct, add to list of trigReqStruct
+	// marshal list of trigReqStruct, and send as response
+	// return
+}
 
+// handleOut is a function for making sure that output is
+// handled in a consistent manner.
+func handleOut(w http.ResponseWriter, errmsg string, outpObj interface{}, status int) {
+	b, err := json.Marshal(outpObj)
+	var outStr string
 
+	if err != nil {
+		outStr = `{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`
+	} else {
+		// Rather than trying to manage any sort fo pretense at polymorphism in Go,
+		// we just slice off the starter open-brace, and slap the error in manually.
+		outStr = `{"error":"` + errmsg + `",` + string(b[1:])
+	}
 
-*/
+	http.Error(w, outStr, status)
+	return
+}

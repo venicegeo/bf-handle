@@ -16,7 +16,6 @@ package bf
 
 import (
 	"fmt"
-	"net/http"
 	
 	"github.com/venicegeo/pzsvc-lib"
 )
@@ -33,7 +32,6 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		return
 	}
 	var fileID string
-	client := &http.Client{}
 
 	switch inpObj.BndMrgType {
 	case "pzsvc-ossim":
@@ -52,8 +50,7 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 								OutGeoTIFF:[]string{0:outFName},
 								OutTxt:nil,
 								AlgoURL:inpObj.BndMrgURL,
-								AuthKey:inpObj.PzAuth,
-								Client:client}
+								AuthKey:inpObj.PzAuth}
 
 		outStruct, err := pzsvc.CallPzsvcExec(&execObj)
 		if err != nil {
@@ -72,7 +69,7 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		return
 	}
 
-	outpID, err := pzsvc.DeployToGeoServer(fileID, "", inpObj.PzAddr, inpObj.PzAuth, client)
+	outpID, err := pzsvc.DeployToGeoServer(fileID, "", inpObj.PzAddr, inpObj.PzAuth)
 
 	fmt.Println("RGB geoserver ID: " + outpID)
 
