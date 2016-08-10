@@ -20,7 +20,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	
+
 	"github.com/venicegeo/bf-handle/bf"
 	"github.com/venicegeo/pzsvc-lib"
 )
@@ -44,34 +44,35 @@ func main() {
 		case "/":
 			fmt.Fprintf(w, "hello.")
 		case "/execute":
-			bf.GenShoreline (w,r)
+			bf.GenShoreline(w, r)
 		case "/newProductLine":
 			fmt.Println("newProduct triggered")
-			bf.NewProductLine (w,r)
+			bf.NewProductLine(w, r)
 		case "/getProductLines":
 			fmt.Println("product line listing")
+			bf.GetTriggers(w, r)
 		case "/listProdLineJobs":
 			// extract trigger Id, number per page, and page length
 			// search alerts by trigger Id, order by createdOn, demarshal to list of appropriate objects
 			// build list of jobIDs
 			// return appropriate object
 			type PljStruct struct {
-				TriggerID	string
-				PerPage		int
-				PageNo		int
-				PzAddr		string
-				PzAuth		string
+				TriggerID string
+				PerPage   int
+				PageNo    int
+				PzAddr    string
+				PzAuth    string
 			}
 			var inpObj PljStruct
 
 			if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-				http.Error(w, `{"Errors": "pzsvc.ReadBodyJSON: ` + err.Error() + `.",  "Input String":"` + string(b) + `"}`, http.StatusBadRequest)
+				http.Error(w, `{"Errors": "pzsvc.ReadBodyJSON: `+err.Error()+`.",  "Input String":"`+string(b)+`"}`, http.StatusBadRequest)
 				return
 			}
 
 			alertList, err := pzsvc.GetAlerts(inpObj.PerPage, inpObj.PageNo, inpObj.TriggerID, inpObj.PzAddr, inpObj.PzAuth)
 			if err != nil {
-				http.Error(w, `{"Errors": "pzsvc.GetAlerts: ` + err.Error() + `"}`, http.StatusBadRequest)
+				http.Error(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
 			outJobs := []string(nil)
@@ -86,11 +87,11 @@ func main() {
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")
 		}
 	})
-	
+
 	portStr := ":8085"
 	portEnv := os.Getenv("PORT")
 	if portEnv != "" {
 		portStr = fmt.Sprintf(":%s", portEnv)
-	}	
+	}
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
