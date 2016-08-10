@@ -16,11 +16,13 @@ package bf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	//	"io/ioutil"
 	//	"log"
 	"net/http"
 	"os"
+	"strconv"
 	//	"time"
 
 	"github.com/venicegeo/pzsvc-lib"
@@ -212,9 +214,10 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
 
 	var bfInpObj gsInpStruct
-	err := json.Unmarshal([]byte(trigInp.Job.JobType.Data.DataInputs["body"].Content), bfInpObj)
+	content := trigInp.Job.JobType.Data.DataInputs["body"].Content
+	err := json.Unmarshal([]byte(content), &bfInpObj)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err.Error() + `  Initial input:` + content)
 	}
 	bfInpObj.MetaURL = ""
 	trigOutp.BFinpObj = bfInpObj
@@ -234,18 +237,18 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		for rKey, rVal = range query.Range {
 			switch rKey {
 			case "cloudCover":
-				trigOutp.CloudCover = rVal.LTE.(string)
+				trigOutp.CloudCover = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
 			case "MinX":
-				trigOutp.MaxX = rVal.LTE.(string)
+				trigOutp.MaxX = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
 			case "MinY":
-				trigOutp.MaxY = rVal.LTE.(string)
+				trigOutp.MaxY = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
 			case "MaxX":
-				trigOutp.MinX = rVal.GTE.(string)
+				trigOutp.MinX = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
 			case "MaxY":
-				trigOutp.MinY = rVal.GTE.(string)
+				trigOutp.MinY = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
 			case "resolution":
-				trigOutp.MaxRes = rVal.LTE.(string)
-				trigOutp.MinRes = rVal.GTE.(string)
+				trigOutp.MaxRes = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
+				trigOutp.MinRes = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
 			case "acquiredDate":
 				trigOutp.MaxDate = rVal.LTE.(string)
 				trigOutp.MinDate = rVal.GTE.(string)
@@ -253,20 +256,19 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 			}
 		}
 	}
-
 	return &trigOutp, nil
 }
 
-// GetTriggers responds to a properly formed network request
+// GetProductLines responds to a properly formed network request
 // by sending out a list of triggers in JSON format.
-func GetTriggers(w http.ResponseWriter, r *http.Request) {
+func GetProductLines(w http.ResponseWriter, r *http.Request) {
 
 	var inpObj struct {
 		EventTypeID string `json:"eventTypeId"`
 		ServiceID   string `json:"serviceId"`
 		CreatedBy   string `json:"createdBy"`
 		PzAddr      string `json:"pzAddr"`
-		PzAuth      string `json:"pzAuth"`
+		PzAuth      string `json:"pzAuthToken"`
 		Order       string `json:"order"`
 		SortBy      string `json:"sortBy"`
 	}
@@ -319,10 +321,17 @@ AddTriggerLoop:
 				continue AddTriggerLoop
 			}
 		}
+		if val, ok := trig.Job.JobType.Data.DataInputs["body"]; ok {
+			if val.Content == "" {
+				continue AddTriggerLoop
+			}
+		} else {
+			continue AddTriggerLoop
+		}
 		newTrig, err := extractTrigReqStruct(trig)
 		if err != nil {
-			handleOut(w, "Extraction error: "+err.Error()+".", outpObj, http.StatusInternalServerError)
-			return
+			fmt.Println(err.Error())
+			continue AddTriggerLoop
 		}
 		outpObj.TrigList = append(outpObj.TrigList, *newTrig)
 	}
