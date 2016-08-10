@@ -39,6 +39,8 @@ func main() {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
+
 		r.ParseForm()
 		switch r.URL.Path {
 		case "/":
