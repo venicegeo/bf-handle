@@ -60,8 +60,8 @@ func main() {
 			// return appropriate object
 			type PljStruct struct {
 				TriggerID string
-				PerPage   int
-				PageNo    int
+				PerPage   string
+				PageNo    string
 				PzAddr    string
 				PzAuth    string
 			}
