@@ -146,8 +146,8 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 func NewProductLine(w http.ResponseWriter, r *http.Request) {
 
 	type outpType struct {
-		TriggerID string `json:"triggerId"`
-		LayerID   string `json:"layerId"`
+		TriggerID    string `json:"triggerId"`
+		LayerGroupID string `json:"layerGroupId"`
 	}
 
 	type newTrigData struct {
@@ -197,6 +197,8 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 
 	outpObj.TriggerID = idObj.Data.ID
 	fmt.Println("idObj.ID: " + idObj.Data.ID)
+
+	outpObj.LayerGroupID = layerGID
 
 	b3, _ := json.Marshal(outpObj)
 	fmt.Println(string(b3))
