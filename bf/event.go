@@ -239,18 +239,18 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		for rKey, rVal = range query.Range {
 			switch rKey {
 			case "cloudCover":
-				trigOutp.CloudCover = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
+				trigOutp.CloudCover = toString(rVal.LTE)
 			case "MinX":
-				trigOutp.MaxX = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
+				trigOutp.MaxX = toString(rVal.LTE)
 			case "MinY":
-				trigOutp.MaxY = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
+				trigOutp.MaxY = toString(rVal.LTE)
 			case "MaxX":
-				trigOutp.MinX = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
+				trigOutp.MinX = toString(rVal.GTE)
 			case "MaxY":
-				trigOutp.MinY = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
+				trigOutp.MinY = toString(rVal.GTE)
 			case "resolution":
-				trigOutp.MaxRes = strconv.FormatFloat(rVal.LTE.(float64), 'E', -1, 64)
-				trigOutp.MinRes = strconv.FormatFloat(rVal.GTE.(float64), 'E', -1, 64)
+				trigOutp.MaxRes = toString(rVal.LTE)
+				trigOutp.MinRes = toString(rVal.GTE)
 			case "acquiredDate":
 				trigOutp.MaxDate = rVal.LTE.(string)
 				trigOutp.MinDate = rVal.GTE.(string)
@@ -259,6 +259,19 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		}
 	}
 	return &trigOutp, nil
+}
+
+func toString(input interface{}) string {
+	switch inp := input.(type) {
+	case int:
+		return strconv.Itoa(inp)
+	case float64:
+		return strconv.FormatFloat(inp, 'E', -1, 64)
+	case string:
+		return inp
+	default:
+		return ""
+	}
 }
 
 // GetProductLines responds to a properly formed network request
