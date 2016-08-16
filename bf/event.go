@@ -45,6 +45,7 @@ type trigUIStruct struct {
 	EventTypeIDs []string    `json:"eventTypeId,omitempty"`
 	ServiceID    string      `json:"serviceId,omitempty"`
 	TriggerID    string      `json:"triggerId,omitempty"`
+	CreatedBy    string      `json:"createdBy,omitempty"`
 	Name         string      `json:"name,omitempty"`
 }
 
@@ -214,6 +215,7 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	trigOutp.TriggerID = trigInp.TriggerID
 	trigOutp.EventTypeIDs = append(trigInp.Condition.EventTypeIDs)
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
+	trigOutp.CreatedBy = trigInp.CreatedBy
 
 	var bfInpObj gsInpStruct
 	content := trigInp.Job.JobType.Data.DataInputs["body"].Content
@@ -302,12 +304,11 @@ func GetProductLines(w http.ResponseWriter, r *http.Request) {
 		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
 	}
 
-	getJSON := `{"perPage":1000,"order":"desc","sortBy":"createdOn"}`
-	// set up output obj.
-	// set up input obj.
+	//getJSON := `{"perPage":1000,"order":"desc","sortBy":"createdOn"}`
+
 	var inTrigList pzsvc.TriggerList
 
-	b, err := pzsvc.RequestKnownJSON("GET", getJSON, inpObj.PzAddr+`/trigger`, inpObj.PzAuth, &inTrigList)
+	b, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+`/trigger?perPage=1000&order=desc&sortBy=createdOn`, inpObj.PzAuth, &inTrigList)
 	if err != nil {
 		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
 		return
