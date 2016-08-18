@@ -65,10 +65,13 @@ type gsOutpStruct struct {
 // primary workhorse function of bf-handle as a whole.  It
 // processes raster images into geojson.
 func GenShoreline(w http.ResponseWriter, r *http.Request) {
-	var inpObj gsInpStruct
-	var outpObj gsOutpStruct
-	var rgbChan chan string
-	var err error
+	var (
+		inpObj  gsInpStruct
+		outpObj gsOutpStruct
+		rgbChan chan string
+		err     error
+		b       []byte
+	)
 
 	// handleOut is a subfunction for making sure that the output is
 	// handled in a consistent manner.
@@ -80,7 +83,7 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		outpObj.Error = errmsg
-		b, err := json.Marshal(outpObj)
+		b, err = json.Marshal(outpObj)
 		if err != nil {
 			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
 		}
@@ -89,7 +92,7 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("bf-handle called.")
-	if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
+	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
 		handleOut("Error: pzsvc.ReadBodyJSON: "+err.Error()+".  Input String: "+string(b), http.StatusBadRequest)
 		return
 	}
