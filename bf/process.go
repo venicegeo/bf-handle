@@ -58,6 +58,8 @@ type gsOutpStruct struct {
 	ImgCapDate  string      `json:"imageCaptureDate"`
 	DbImgID     string      `json:"dbImageId"`
 	JobName     string      `json:"resultName"`
+	SensorName  string      `json:"sensorName"`
+	AlgoURL     string      `json:"svcURL"`
 	Error       string      `json:"error"`
 }
 
@@ -126,6 +128,8 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 	outpObj.DbImgID = inpObj.MetaJSON.ID
 	outpObj.ImgCapDate = inpObj.MetaJSON.Properties["acquiredDate"].(string)
 	outpObj.Geometry = inpObj.MetaJSON.Geometry
+	outpObj.SensorName = inpObj.MetaJSON.Properties["sensorName"].(string)
+	outpObj.AlgoURL = inpObj.AlgoURL
 
 	fmt.Println("bf-handle: provisioning begins.")
 	dataIDs, err := provision(inpObj, nil)
