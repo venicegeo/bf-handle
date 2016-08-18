@@ -52,7 +52,6 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 			break
 		}
 		if gjIfc, err = crawlFootprints(gjIfc); err == nil {
-			log.Printf("%#v", gjIfc)
 			if bytes, err = geojson.Write(gjIfc); err != nil {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				break
