@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/venicegeo/bf-handle/bf"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -47,6 +48,8 @@ func main() {
 			fmt.Fprintf(w, "hello.")
 		case "/execute":
 			bf.GenShoreline(w, r)
+		case "/prepareFootprints":
+			bf.PrepareFootprints(w, r)
 		case "/newProductLine":
 			fmt.Println("newProduct triggered")
 			bf.NewProductLine(w, r)
@@ -95,5 +98,8 @@ func main() {
 	if portEnv != "" {
 		portStr = fmt.Sprintf(":%s", portEnv)
 	}
+
+	catalog.SetImageCatalogPrefix("pzsvc-image-catalog")
+
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
