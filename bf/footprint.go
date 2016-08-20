@@ -15,6 +15,7 @@
 package bf
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math"
@@ -63,8 +64,9 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 
 		writer.Header().Set("Content-Type", "application/json")
 		writer.Write(bytes)
-	case pzsvc.MethodGet:
-		http.Error(writer, "This endpoint does not support GET requests.", http.StatusBadRequest)
+	default:
+		message := fmt.Sprintf("This endpoint does not support %v requests.", request.Method)
+		http.Error(writer, message, http.StatusBadRequest)
 	}
 }
 
