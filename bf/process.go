@@ -20,8 +20,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"runtime"
-	"strconv"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -61,50 +59,43 @@ type gsOutpStruct struct {
 	Error       string      `json:"error"`
 }
 
-// GenShoreline serves as main function for this file, and is the
-// primary workhorse function of bf-handle as a whole.  It
-// processes raster images into geojson.
-func GenShoreline(w http.ResponseWriter, r *http.Request) {
+// Execute executes a single shoreline detection
+// based on the metadata in a gsInpStruct
+func Execute(w http.ResponseWriter, r *http.Request) {
 	var (
+		b       []byte
+		err     error
 		inpObj  gsInpStruct
 		outpObj gsOutpStruct
-		rgbChan chan string
-		err     error
-		b       []byte
 	)
 
-	// handleOut is a subfunction for making sure that the output is
-	// handled in a consistent manner.
-	handleOut := func(errmsg string, status int) {
-		if errmsg != "" {
-			_, _, line, ok := runtime.Caller(1)
-			if ok == true {
-				errmsg = `(bf-handle/bf/process.go, ` + strconv.Itoa(line) + `): ` + errmsg
-			}
-		}
+	// clients to this function expect a JSON response
+	// containing the error message
+	handleError := func(errmsg string, status int) {
 		outpObj.Error = errmsg
 		b, err = json.Marshal(outpObj)
 		if err != nil {
 			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
 		}
 		http.Error(w, string(b), status)
-		return
 	}
 
-	fmt.Println("bf-handle called.")
 	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-		handleOut("Error: pzsvc.ReadBodyJSON: "+err.Error()+".  Input String: "+string(b), http.StatusBadRequest)
+		tracedError := pzsvc.TracedError("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(b))
+		handleError(tracedError.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
-		handleOut("Error: Must specify one and only one of metaDataURL ("+inpObj.MetaURL+") and metaDataJSON.", http.StatusBadRequest)
+		tracedError := pzsvc.TracedError("Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON.")
+		handleError(tracedError.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if inpObj.MetaURL != "" {
 		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
-			handleOut("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL ("+inpObj.MetaURL+"): "+err.Error(), http.StatusBadRequest)
+			tracedError := pzsvc.TracedError("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error())
+			handleError(tracedError.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -119,6 +110,32 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
+	outpObj = genShoreline(inpObj)
+	if outpObj.Error == "" {
+		w.Header().Set("Content-Type", "application/json")
+		b, _ = json.Marshal(outpObj)
+		w.Write(b)
+	} else {
+		handleError(outpObj.Error, http.StatusInternalServerError)
+	}
+}
+
+// ExecuteBatch executes a single shoreline detection
+// based on a GeoJSON object representing one or more geometries
+func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
+}
+
+// GenShoreline serves as main function for this file, and is the
+// primary workhorse function of bf-handle as a whole.  It
+// processes raster images into geojson.
+func genShoreline(inpObj gsInpStruct) gsOutpStruct {
+	var (
+		outpObj gsOutpStruct
+		rgbChan chan string
+		err     error
+		dataIDs []string
+	)
+
 	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
 		rgbChan = make(chan string)
 		go rgbGen(inpObj, rgbChan)
@@ -130,31 +147,31 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 	outpObj.ImgCapDate = inpObj.MetaJSON.Properties["acquiredDate"].(string)
 	outpObj.Geometry = inpObj.MetaJSON.Geometry
 
-	fmt.Println("bf-handle: provisioning begins.")
-	dataIDs, err := provision(inpObj, nil)
-	if err != nil {
-		handleOut("Error: bf-handle provisioning: "+err.Error(), http.StatusBadRequest)
-		return
+	fmt.Println("bf-handle: running provision")
+	if dataIDs, err = provision(inpObj, nil); err != nil {
+		outpObj.Error = err.Error()
+		return outpObj
 	}
 
 	fmt.Println("bf-handle: running Algo")
 	outpObj.ShoreDataID, outpObj.ShoreDeplID, err = runAlgo(inpObj, dataIDs)
 	if err != nil {
-		handleOut("Error: algo result: "+err.Error(), http.StatusBadRequest)
-		return
+		outpObj.Error = err.Error()
+		return outpObj
 	}
+
 	if rgbChan != nil {
 		fmt.Println("waiting for rgb")
 		rgbLoc := <-rgbChan
 		if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
-			handleOut(rgbLoc, http.StatusInternalServerError)
-			return
+			outpObj.Error = rgbLoc
+			return outpObj
 		}
 		outpObj.RGBloc = rgbLoc
 	}
 
 	fmt.Println("outputting")
-	handleOut("", http.StatusOK)
+	return outpObj
 }
 
 // provision uses the given image metadata to access the database where its image set is stored,
