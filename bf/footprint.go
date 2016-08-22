@@ -104,10 +104,7 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 				return nil, pzsvc.TracedError(err.Error())
 			}
 		}
-	case *geojson.MultiPolygon:
-	case *geojson.Feature:
-	case *geojson.LineString:
-	case *geojson.Polygon:
+	case *geojson.MultiPolygon, *geojson.Feature, *geojson.LineString, *geojson.Polygon:
 		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
 			return nil, pzsvc.TracedError(err.Error())
 		}
