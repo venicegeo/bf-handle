@@ -344,7 +344,8 @@ AddTriggerLoop:
 		} else {
 			continue AddTriggerLoop
 		}
-		newTrig, err := extractTrigReqStruct(trig)
+		var newTrig *trigUIStruct
+		newTrig, err = extractTrigReqStruct(trig)
 		if err != nil {
 			fmt.Println(err.Error())
 			continue AddTriggerLoop

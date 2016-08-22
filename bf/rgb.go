@@ -31,7 +31,10 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		rgbChan <- ("Error: " + err.Error())
 		return
 	}
-	var fileID string
+	var (
+		fileID    string
+		outStruct *pzsvc.ExecOut
+	)
 
 	switch inpObj.BndMrgType {
 	case "pzsvc-ossim":
@@ -52,7 +55,7 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 			AlgoURL:    inpObj.BndMrgURL,
 			AuthKey:    inpObj.PzAuth}
 
-		outStruct, err := pzsvc.CallPzsvcExec(&execObj)
+		outStruct, err = pzsvc.CallPzsvcExec(&execObj)
 		if err != nil {
 			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: %s`, err.Error())
 			return

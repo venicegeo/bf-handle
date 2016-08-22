@@ -7,5 +7,7 @@ applications:
   disk_quota: 2G
   instances: 1
   timeout: 180
+  services: 
+    - pz-redis
   env:
     LD_LIBRARY_PATH: "/home/vcap/app/lib"
