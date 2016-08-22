@@ -100,6 +100,7 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if inpObj.MetaURL != "" {
+		inpObj.MetaJSON = geojson.NewFeature(nil, "", nil)
 		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
 			tracedError := pzsvc.TracedError("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error())
 			handleError(tracedError.Error(), http.StatusBadRequest)
