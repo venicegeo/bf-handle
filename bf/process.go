@@ -97,7 +97,7 @@ func GenShoreline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
-		handleOut("Error: Must specify one and only one of metaDataURL ("+inpObj.MetaURL+") and metaDataJSON.", http.StatusBadRequest)
+		handleOut(`Error: Must specify one and only one of metaDataURL ("`+inpObj.MetaURL+`") and metaDataJSON.`, http.StatusBadRequest)
 		return
 	}
 

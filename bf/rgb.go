@@ -16,7 +16,7 @@ package bf
 
 import (
 	"fmt"
-	
+
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -26,7 +26,7 @@ import (
 // only pzsvc-ossim is available).  The results get pushed back through
 // the given channel.
 func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
-	bandIDs, err := provision(inpObj, []string{"red","green","blue"})
+	bandIDs, err := provision(inpObj, []string{"red", "green", "blue"})
 	if err != nil {
 		rgbChan <- ("Error: " + err.Error())
 		return
@@ -39,18 +39,18 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		outFName := "rgb.TIF"
 
 		funcStr := fmt.Sprintf(`bandmerge --output-radiometry U8 --red %s --green %s --blue %s %s`,
-								bandIDs[0] + ".TIF",
-								bandIDs[1] + ".TIF",
-								bandIDs[2] + ".TIF",
-								outFName)
+			bandIDs[0]+".TIF",
+			bandIDs[1]+".TIF",
+			bandIDs[2]+".TIF",
+			outFName)
 
-		execObj := pzsvc.ExecIn{FuncStr:funcStr,
-								InFiles:bandIDs,
-								OutGeoJSON:nil,
-								OutGeoTIFF:[]string{0:outFName},
-								OutTxt:nil,
-								AlgoURL:inpObj.BndMrgURL,
-								AuthKey:inpObj.PzAuth}
+		execObj := pzsvc.ExecIn{FuncStr: funcStr,
+			InFiles:    bandIDs,
+			OutGeoJSON: nil,
+			OutGeoTIFF: []string{0: outFName},
+			OutTxt:     nil,
+			AlgoURL:    inpObj.BndMrgURL,
+			AuthKey:    inpObj.PzAuth}
 
 		outStruct, err := pzsvc.CallPzsvcExec(&execObj)
 		if err != nil {
@@ -60,7 +60,7 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		fileID = outStruct.OutFiles[outFName]
 		if fileID == "" {
 			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: No Outfile.  Pzsvc-exec errors: %s`, err.Error())
-			return			
+			return
 		}
 		fmt.Println("RGB fileId: " + fileID)
 

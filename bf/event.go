@@ -72,32 +72,32 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 
 	queryFilters := []pzsvc.QueryClause{}
 	if trigData.SensorName != "" {
-		sensorMatch := map[string]string{"SensorName": trigData.SensorName}
+		sensorMatch := map[string]string{"data.sensorName": trigData.SensorName}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: sensorMatch, Range: nil})
 	}
 	if trigData.CloudCover != "" {
 		cClause := pzsvc.CompClause{LTE: trigData.CloudCover, GTE: nil, Format: ""}
-		cloudRange := map[string]pzsvc.CompClause{"cloudCover": cClause}
+		cloudRange := map[string]pzsvc.CompClause{"data.cloudCover": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: cloudRange})
 	}
 	if trigData.MaxX != "" {
 		cClause := pzsvc.CompClause{LTE: trigData.MaxX, GTE: nil, Format: ""}
-		XRange := map[string]pzsvc.CompClause{"MinX": cClause}
+		XRange := map[string]pzsvc.CompClause{"data.minX": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	if trigData.MinX != "" {
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinX, Format: ""}
-		XRange := map[string]pzsvc.CompClause{"MaxX": cClause}
+		XRange := map[string]pzsvc.CompClause{"data.maxX": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	if trigData.MaxY != "" {
 		cClause := pzsvc.CompClause{LTE: trigData.MaxY, GTE: nil, Format: ""}
-		YRange := map[string]pzsvc.CompClause{"MinY": cClause}
+		YRange := map[string]pzsvc.CompClause{"data.minY": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 	if trigData.MinY != "" {
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinY, Format: ""}
-		YRange := map[string]pzsvc.CompClause{"MaxY": cClause}
+		YRange := map[string]pzsvc.CompClause{"data.maxY": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 
@@ -109,7 +109,7 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 		if trigData.MinRes != "" {
 			resClause.GTE = trigData.MinRes
 		}
-		resFilter := map[string]pzsvc.CompClause{"resolution": resClause}
+		resFilter := map[string]pzsvc.CompClause{"data.resolution": resClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: resFilter})
 	}
 
@@ -121,7 +121,7 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 		if trigData.MinDate != "" {
 			dateClause.GTE = trigData.MinDate
 		}
-		dateFilter := map[string]pzsvc.CompClause{"acquiredDate": dateClause}
+		dateFilter := map[string]pzsvc.CompClause{"data.acquiredDate": dateClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: dateFilter})
 	}
 
@@ -131,10 +131,10 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 
 	bfInpObj := &trigData.BFinpObj
 	bfInpObj.LGroupID = layerGID
-	bfInpObj.MetaURL = "$link"
+	bfInpObj.MetaURL = "$data.link"
 	b, _ := json.Marshal(bfInpObj)
 
-	jobInpObj := pzsvc.DataType{Content: string(b), Type: "text", MimeType: "application/json"}
+	jobInpObj := pzsvc.DataType{Content: string(b), Type: "body", MimeType: "application/json"}
 	jobOutpObj := pzsvc.DataType{Content: "", Type: "text", MimeType: "application/json"}
 	jobIntMap := map[string]pzsvc.DataType{"body": jobInpObj}
 	trigObj.Job.JobType.Data = pzsvc.JobData{ServiceID: trigData.ServiceID, DataInputs: jobIntMap, DataOutput: []pzsvc.DataType{jobOutpObj}}
@@ -233,27 +233,27 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		var rVal pzsvc.CompClause
 		for mKey, mVal = range query.Match {
 			switch mKey {
-			case "SensorName":
+			case "data.sensorName":
 				trigOutp.SensorName = mVal
 			default:
 			}
 		}
 		for rKey, rVal = range query.Range {
 			switch rKey {
-			case "cloudCover":
+			case "data.cloudCover":
 				trigOutp.CloudCover = toString(rVal.LTE)
-			case "MinX":
+			case "data.minX":
 				trigOutp.MaxX = toString(rVal.LTE)
-			case "MinY":
+			case "data.minY":
 				trigOutp.MaxY = toString(rVal.LTE)
-			case "MaxX":
+			case "data.maxX":
 				trigOutp.MinX = toString(rVal.GTE)
-			case "MaxY":
+			case "data.maxY":
 				trigOutp.MinY = toString(rVal.GTE)
-			case "resolution":
+			case "data.resolution":
 				trigOutp.MaxRes = toString(rVal.LTE)
 				trigOutp.MinRes = toString(rVal.GTE)
-			case "acquiredDate":
+			case "data.acquiredDate":
 				trigOutp.MaxDate = rVal.LTE.(string)
 				trigOutp.MinDate = rVal.GTE.(string)
 			default:
