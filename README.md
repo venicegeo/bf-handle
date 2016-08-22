@@ -40,3 +40,7 @@ bf-handle responds with a json string including the following:
 - "rgbLoc": Piazza S3 bucket dataID for the results of the bandmerge algorithm (if requested)
 
 - "error": describes any errors that may have occurred during processing
+
+### bf-handle/newProductLine
+
+creates a trigger into bf-handle/execute and associates it with a geoserver layer group.  Once this product line is created, it will run bf-handle/execute every time an appropriate event fires
