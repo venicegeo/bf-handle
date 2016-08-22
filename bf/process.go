@@ -180,10 +180,12 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	outpObj = genShorelineBatch(inpObj)
+	fmt.Print("Finished batch process.")
 
 	if outpObj.Error == "" {
 		w.Header().Set("Content-Type", "application/json")
 		b, _ = json.Marshal(outpObj)
+		fmt.Print(string(b))
 		w.Write(b)
 	} else {
 		handleError(outpObj.Error, http.StatusInternalServerError)
