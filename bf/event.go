@@ -131,7 +131,7 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 
 	bfInpObj := &trigData.BFinpObj
 	bfInpObj.LGroupID = layerGID
-	bfInpObj.MetaURL = "$data.link"
+	bfInpObj.MetaURL = "$link"
 	b, _ := json.Marshal(bfInpObj)
 
 	jobInpObj := pzsvc.DataType{Content: string(b), Type: "body", MimeType: "application/json"}
