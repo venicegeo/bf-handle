@@ -15,6 +15,7 @@
 package bf
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math"
@@ -63,8 +64,9 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 
 		writer.Header().Set("Content-Type", "application/json")
 		writer.Write(bytes)
-	case pzsvc.MethodGet:
-		http.Error(writer, "This endpoint does not support GET requests.", http.StatusBadRequest)
+	default:
+		message := fmt.Sprintf("This endpoint does not support %v requests.", request.Method)
+		http.Error(writer, message, http.StatusBadRequest)
 	}
 }
 
@@ -86,37 +88,48 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 
 	bestImages = geojson.NewFeatureCollection(nil)
 	switch gj := gjIfc.(type) {
+	case *geojson.GeometryCollection:
+		for _, geometry := range gj.Geometries {
+			if currentFootprints, err = crawlFootprints(geometry); err == nil {
+				bestImages.Features = append(bestImages.Features, currentFootprints.Features...)
+			} else {
+				return nil, pzsvc.TracedError(err.Error())
+			}
+		}
 	case *geojson.FeatureCollection:
 		for _, feature := range gj.Features {
 			if currentFootprints, err = crawlFootprints(feature); err == nil {
 				bestImages.Features = append(bestImages.Features, currentFootprints.Features...)
 			} else {
-				return nil, err
+				return nil, pzsvc.TracedError(err.Error())
 			}
 		}
+	case *geojson.MultiPolygon:
 	case *geojson.Feature:
+	case *geojson.LineString:
+	case *geojson.Polygon:
 		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		if sourceGeometry, err = sourceGeometry.Buffer(0.25); err != nil {
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		if polygon, err = geos.EmptyPolygon(); err != nil {
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		if lineString, err = sourceGeometry.Shell(); err != nil {
 			log.Printf("Shell for %v failed: %v", sourceGeometry.String(), err.Error())
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		if pointCount, err = lineString.NPoint(); err != nil {
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		for inx := 0; inx < pointCount; inx++ {
 			if point, err = lineString.Point(inx); err != nil {
-				return nil, err
+				return nil, pzsvc.TracedError(err.Error())
 			}
 			if contains, err = polygon.Contains(point); err != nil {
-				return nil, err
+				return nil, pzsvc.TracedError(err.Error())
 			} else if contains {
 				continue
 			}
@@ -125,26 +138,26 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 			} else {
 				bestImages.Features = append(bestImages.Features, bestImage)
 				if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
-					return nil, err
+					return nil, pzsvc.TracedError(err.Error())
 				}
 				if polygon, err = polygon.Union(currentGeometry); err != nil {
-					return nil, err
+					return nil, pzsvc.TracedError(err.Error())
 				}
 			}
 		}
 		if holes, err = sourceGeometry.Holes(); err != nil {
-			return nil, err
+			return nil, pzsvc.TracedError(err.Error())
 		}
 		for _, hole := range holes {
 			if pointCount, err = hole.NPoint(); err != nil {
-				return nil, err
+				return nil, pzsvc.TracedError(err.Error())
 			}
 			for inx := 0; inx < pointCount; inx++ {
 				if point, err = lineString.Point(inx); err != nil {
-					return nil, err
+					return nil, pzsvc.TracedError(err.Error())
 				}
 				if contains, err = polygon.Contains(point); err != nil {
-					return nil, err
+					return nil, pzsvc.TracedError(err.Error())
 				} else if contains {
 					continue
 				}
@@ -153,7 +166,7 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 				} else {
 					bestImages.Features = append(bestImages.Features, bestImage)
 					if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
-						return nil, err
+						return nil, pzsvc.TracedError(err.Error())
 					}
 					polygon, err = polygon.Union(currentGeometry)
 				}
@@ -162,6 +175,8 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 		sort.Sort(ByScore(bestImages.Features))
 		bestImages.Features = selfClip(bestImages.Features)
 		bestImages.Features = clipFootprints(bestImages.Features, sourceGeometry)
+	default:
+		return nil, pzsvc.TracedError(fmt.Sprintf("Cannot accept input of %t", gjIfc))
 	}
 
 	return bestImages, nil

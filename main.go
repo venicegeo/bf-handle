@@ -47,7 +47,9 @@ func main() {
 		case "/":
 			fmt.Fprintf(w, "hello.")
 		case "/execute":
-			bf.GenShoreline(w, r)
+			bf.Execute(w, r)
+		case "/executeBatch":
+			bf.ExecuteBatch(w, r)
 		case "/prepareFootprints":
 			bf.PrepareFootprints(w, r)
 		case "/newProductLine":
