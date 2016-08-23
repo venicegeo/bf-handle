@@ -73,13 +73,13 @@ func main() {
 			var inpObj PljStruct
 
 			if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-				http.Error(w, `{"Errors": "pzsvc.ReadBodyJSON: `+err.Error()+`.",  "Input String":"`+string(b)+`"}`, http.StatusBadRequest)
+				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.ReadBodyJSON: `+err.Error()+`.",  "Input String":"`+string(b)+`"}`, http.StatusBadRequest)
 				return
 			}
 
 			alertList, err := pzsvc.GetAlerts(inpObj.PerPage, inpObj.PageNo, inpObj.TriggerID, inpObj.PzAddr, inpObj.PzAuth)
 			if err != nil {
-				http.Error(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
+				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
 			outJobs := []string(nil)
@@ -88,7 +88,7 @@ func main() {
 			}
 			b, _ := json.Marshal(outJobs)
 
-			http.Error(w, string(b), http.StatusOK)
+			pzsvc.HTTPOut(w, string(b), http.StatusOK)
 
 		default:
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")

@@ -33,18 +33,18 @@ Various TODOs:
 */
 
 type gsInpStruct struct {
-	AlgoType   string           `json:"algoType"`      // API for the shoreline algorithm
-	AlgoURL    string           `json:"svcURL"`        // URL for the shoreline algorithm
-	BndMrgType string           `json:"bandMergeType"` // API for the bandmerge/rgb algorithm (optional)
-	BndMrgURL  string           `json:"bandMergeURL"`  // URL for the bandmerge/rgb algorithm (optional)
-	MetaJSON   *geojson.Feature `json:"metaDataJSON"`  // JSON block from Image Catalog
-	MetaURL    string           `json:"metaDataURL"`   // URL to call to get JSON block
-	Bands      []string         `json:"bands"`         // names of bands to feed into the shoreline algorithm
-	PzAuth     string           `json:"pzAuthToken"`   // Auth string for this Pz instance
-	PzAddr     string           `json:"pzAddr"`        // gateway URL for this Pz instance
-	DbAuth     string           `json:"dbAuthToken"`   // Auth string for the initial image database
-	LGroupID   string           `json:"lGroupId"`      // UUID string for the target geoserver layer group
-	JobName    string           `json:"resultName"`    // Arbitrary user-defined string to aid in later reference
+	AlgoType   string           `json:"algoType"`                // API for the shoreline algorithm
+	AlgoURL    string           `json:"svcURL"`                  // URL for the shoreline algorithm
+	BndMrgType string           `json:"bandMergeType,omitempty"` // API for the bandmerge/rgb algorithm (optional)
+	BndMrgURL  string           `json:"bandMergeURL,omitempty"`  // URL for the bandmerge/rgb algorithm (optional)
+	MetaJSON   *geojson.Feature `json:"metaDataJSON,omitempty"`  // JSON block from Image Catalog
+	MetaURL    string           `json:"metaDataURL,omitempty"`   // URL to call to get JSON block
+	Bands      []string         `json:"bands"`                   // names of bands to feed into the shoreline algorithm
+	PzAuth     string           `json:"pzAuthToken,omitempty"`   // Auth string for this Pz instance
+	PzAddr     string           `json:"pzAddr"`                  // gateway URL for this Pz instance
+	DbAuth     string           `json:"dbAuthToken,omitempty"`   // Auth string for the initial image database
+	LGroupID   string           `json:"lGroupId"`                // UUID string for the target geoserver layer group
+	JobName    string           `json:"resultName"`              // Arbitrary user-defined string to aid in later reference
 }
 
 type gsOutpStruct struct {
@@ -84,7 +84,7 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
 		}
-		http.Error(w, string(b), status)
+		pzsvc.HTTPOut(w, string(b), status)
 	}
 
 	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
