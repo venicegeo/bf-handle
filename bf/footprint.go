@@ -185,24 +185,35 @@ func clipFootprints(features []*geojson.Feature, geometry *geos.Geometry) []*geo
 		gjGeometry interface{}
 		currentGeometry,
 		intersectedGeometry *geos.Geometry
+		area   float64
+		result []*geojson.Feature
 	)
 
 	for _, feature := range features {
 		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
-			log.Panic(err.Error())
-			return features
+			log.Printf("Failed to convert GeoJSON to GEOS: %v\n%v", err.Error(), feature.String())
+			continue
 		}
 		if intersectedGeometry, err = currentGeometry.Intersection(geometry); err != nil {
 			log.Printf("Skipping current geometry: %v\n%v", currentGeometry.String(), err.Error())
 			continue
 		}
+		if area, err = intersectedGeometry.Area(); err != nil {
+			log.Printf("Failed to compute area of intersectedGeometry %v: %v", intersectedGeometry.String(), err.Error())
+			continue
+		}
+		if area == 0.0 {
+			fmt.Printf("Area of intersection for feature %v is empty. Skipping.\n", feature.ID)
+			continue
+		}
 		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(intersectedGeometry); err != nil {
-			log.Panic(err.Error())
-			return features
+			log.Printf("Failed to convert intersectedGeometry %v: %v", intersectedGeometry.String(), err.Error())
+			continue
 		}
 		feature.Geometry = gjGeometry
+		result = append(result, feature)
 	}
-	return features
+	return result
 }
 
 func selfClip(features []*geojson.Feature) []*geojson.Feature {
