@@ -39,14 +39,13 @@ type asInpStruct struct {
 // AssembleShorelines creates a single dataset from some input or something
 func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 	var (
-		b             []byte
-		err           error
-		inpObj        asInpStruct
-		outpObj       gsOutpStruct
-		gjBaseline    interface{}
-		gjResult      interface{}
-		geosBaseline  *geos.Geometry
-		assembledGeom *geos.Geometry
+		b            []byte
+		err          error
+		inpObj       asInpStruct
+		outpObj      gsOutpStruct
+		gjBaseline   interface{}
+		geosBaseline *geos.Geometry
+		shorelines   *geojson.FeatureCollection
 	)
 
 	// clients to this function expect a JSON response
@@ -73,15 +72,10 @@ func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if assembledGeom = assembleShorelines(inpObj, geosBaseline); assembledGeom == nil {
+	if shorelines = assembleShorelines(inpObj, geosBaseline); shorelines == nil {
 		w.Write([]byte("Found nothing. Sorry"))
 	} else {
-		if gjResult, err = geojsongeos.GeoJSONFromGeos(assembledGeom); err != nil {
-			tracedError := pzsvc.TracedError("Could not convert output GEOS geometry to GeoJSON object: " + err.Error())
-			handleError(tracedError.Error(), http.StatusInternalServerError)
-			return
-		}
-		if b, err = geojson.Write(gjResult); err != nil {
+		if b, err = geojson.Write(shorelines); err != nil {
 			tracedError := pzsvc.TracedError("Failed to write output GeoJSON object: " + err.Error())
 			handleError(tracedError.Error(), http.StatusInternalServerError)
 			return
@@ -90,20 +84,19 @@ func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geos.Geometry {
+func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geojson.FeatureCollection {
 	var (
 		gjIfc interface{}
 		collGeom,
 		collGeomPart,
-		foundGeom,
-		intersectGeom,
 		clippedGeom *geos.Geometry
-		b      []byte
-		err    error
-		fc     *geojson.FeatureCollection
+		b   []byte
+		err error
+		currFc,
+		fc *geojson.FeatureCollection
 		ok     bool
 		empty  bool
-		result *geos.Geometry
+		result *geojson.FeatureCollection
 		foundGeoms,
 		clippedGeoms []*geos.Geometry
 		count int
@@ -111,8 +104,11 @@ func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geos.Geome
 
 	log.Printf("baseline: %v", baseline.String())
 
+	result = geojson.NewFeatureCollection(nil)
+
 	for _, collection := range inpObj.Collections {
 		clippedGeoms = nil
+		foundGeoms = nil
 
 		if collGeom, err = geojsongeos.GeosFromGeoJSON(geojson.FromMap(collection.Geometry.(map[string]interface{}))); err != nil {
 			log.Printf("%T", collection.Geometry)
@@ -162,53 +158,60 @@ func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geos.Geome
 
 		if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 			for _, clippedGeom = range clippedGeoms {
-				if foundGeom = findBestMatch(fc, clippedGeom); foundGeom == nil {
+				if currFc = findBestMatches(fc, clippedGeom, collGeom); len(currFc.Features) == 0 {
 					log.Printf("Found no matching shorelines for %v.", collection.ShoreDataID)
 				} else {
-					if intersectGeom, err = foundGeom.Intersection(collGeom); err != nil {
-						log.Printf(pzsvc.TracedError("Failed to clip the found geometry for %v " + collection.ShoreDataID + ": " + err.Error()).Error())
-						// log.Printf("foundGeom: %v", foundGeom.String())
-						log.Printf("collGeom: %v", collGeom.String())
-						continue
-					}
-
-					foundGeoms = append(foundGeoms, intersectGeom)
-					fmt.Printf("Found a matching shoreline for %v.\n", collection.ShoreDataID)
+					result.Features = append(result.Features, currFc.Features...)
+					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), collection.ShoreDataID)
 				}
 			}
 		} else {
 			log.Printf(pzsvc.TracedError(fmt.Sprintf("Was expecting a *geojson.FeatureCollection, got a %T", gjIfc)).Error())
 		}
-	}
-	if result, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, foundGeoms...); err != nil {
-		log.Printf(pzsvc.TracedError("Failed to create new collection containing" + string(len(foundGeoms)) + " geometries\n" + err.Error()).Error())
+		if gjIfc, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, foundGeoms...); err != nil {
+			log.Printf(pzsvc.TracedError("Failed to create new collection containing" + string(len(foundGeoms)) + " geometries\n" + err.Error()).Error())
+		}
 	}
 	return result
 }
 
-func findBestMatch(fc *geojson.FeatureCollection, comparison *geos.Geometry) *geos.Geometry {
+func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geometry) *geojson.FeatureCollection {
 	var (
-		err           error
-		intersects    bool
-		currGeom      *geos.Geometry
-		result        *geos.Geometry
-		longestLength float64
+		err         error
+		intersects  bool
+		gjIfc       interface{}
+		currFeature *geojson.Feature
+		currGeom,
+		intersectGeom *geos.Geometry
+		result *geojson.FeatureCollection
 	)
+	result = geojson.NewFeatureCollection(nil)
 	log.Printf("%v features to inspect", len(fc.Features))
 	for _, feature := range fc.Features {
 		if currGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 			log.Printf(pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error()).Error())
 			continue
 		}
+		// Need a better test here
 		if intersects, err = currGeom.Intersects(comparison); err != nil {
 			log.Printf(pzsvc.TracedError("Failed to test intersection: " + err.Error()).Error())
 			continue
 		} else if intersects {
-			length, _ := currGeom.Length()
-			if length > longestLength {
-				longestLength = length
-				result = currGeom
+			// Need to clip each found geometry to its collection geometry
+			if intersectGeom, err = currGeom.Intersection(clip); err != nil {
+				log.Printf(pzsvc.TracedError("Failed to clip the found geometry for %v " + feature.ID + ": " + err.Error()).Error())
+				// log.Printf("clip: %v", clip.String())
+				// log.Printf("currGeom: %v", currGeom.String())
+				continue
 			}
+
+			if gjIfc, err = geojsongeos.GeoJSONFromGeos(intersectGeom); err != nil {
+				log.Printf(pzsvc.TracedError("Failed to convert GEOS geometry to GeoJSON: " + err.Error()).Error())
+				log.Printf("intersectGeom: %v", intersectGeom.String())
+				continue
+			}
+			currFeature = geojson.NewFeature(gjIfc, feature.ID, feature.Properties)
+			result.Features = append(result.Features, currFeature)
 		}
 	}
 	return result
