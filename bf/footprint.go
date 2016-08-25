@@ -172,6 +172,8 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 		sort.Sort(ByScore(bestImages.Features))
 		bestImages.Features = selfClip(bestImages.Features)
 		bestImages.Features = clipFootprints(bestImages.Features, sourceGeometry)
+	case map[string]interface{}:
+		return crawlFootprints(geojson.FromMap(gj))
 	default:
 		return nil, pzsvc.TracedError(fmt.Sprintf("Cannot accept input of %t", gjIfc))
 	}

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -27,25 +28,33 @@ import (
 )
 
 type asInpStruct struct {
-	Collections []gsOutpStruct         `json:"collections"` // Slice of collection objects
-	PzAuth      string                 `json:"pzAuthToken"` // Auth string for this Pz instance
-	PzAddr      string                 `json:"pzAddr"`      // gateway URL for this Pz instance
-	Baseline    map[string]interface{} `json:"baseline"`    // Baseline shoreline, as GeoJSON
-	// DbAuth      string         `json:"dbAuthToken"`   // Auth string for the initial image database
-	// LGroupID    string         `json:"lGroupId"`      // UUID string for the target geoserver layer group
-	// JobName     string         `json:"resultName"`    // Arbitrary user-defined string to aid in later reference
+	AlgoType string `json:"algoType"` // API for the shoreline algorithm
+	AlgoURL  string `json:"svcURL"`   // URL for the shoreline algorithm
+	// BndMrgType string           `json:"bandMergeType,omitempty"` // API for the bandmerge/rgb algorithm (optional)
+	// BndMrgURL  string           `json:"bandMergeURL,omitempty"`  // URL for the bandmerge/rgb algorithm (optional)
+	Bands       []string                   `json:"bands"`                 // names of bands to feed into the shoreline algorithm
+	PzAuth      string                     `json:"pzAuthToken,omitempty"` // Auth string for this Pz instance
+	PzAddr      string                     `json:"pzAddr"`                // gateway URL for this Pz instance
+	DbAuth      string                     `json:"dbAuthToken,omitempty"` // Auth string for the initial image database
+	LGroupID    string                     `json:"lGroupId"`              // UUID string for the target geoserver layer group
+	JobName     string                     `json:"resultName"`            // Arbitrary user-defined string to aid in later reference
+	Collections *geojson.FeatureCollection `json:"collections"`           // Collection objects
+	Baseline    map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
+}
+
+type ebOutStruct struct {
+	FootprintsID string `json:"footprintsID"` // Piazza ID for GeoJSON of footprints
+	ShorelinesID string `json:"shorelinesID"` // Piazza ID for GeoJSON of shorelines
 }
 
 // AssembleShorelines creates a single dataset from some input or something
 func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 	var (
-		b            []byte
-		err          error
-		inpObj       asInpStruct
-		outpObj      gsOutpStruct
-		gjBaseline   interface{}
-		geosBaseline *geos.Geometry
-		shorelines   *geojson.FeatureCollection
+		b          []byte
+		err        error
+		inpObj     asInpStruct
+		outpObj    gsOutpStruct
+		shorelines *geojson.FeatureCollection
 	)
 
 	// clients to this function expect a JSON response
@@ -64,16 +73,8 @@ func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gjBaseline = geojson.FromMap(inpObj.Baseline)
-
-	if geosBaseline, err = geojsongeos.GeosFromGeoJSON(gjBaseline); err != nil {
-		tracedError := pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error())
-		handleError(tracedError.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if shorelines = assembleShorelines(inpObj, geosBaseline); shorelines == nil {
-		w.Write([]byte("Found nothing. Sorry"))
+	if shorelines, err = assembleShorelines(inpObj); err != nil {
+		handleError(err.Error(), http.StatusBadRequest)
 	} else {
 		if b, err = geojson.Write(shorelines); err != nil {
 			tracedError := pzsvc.TracedError("Failed to write output GeoJSON object: " + err.Error())
@@ -84,9 +85,95 @@ func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geojson.FeatureCollection {
+// ExecuteBatch executes a single shoreline detection
+// based on a GeoJSON object representing one or more geometries
+func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
+	var (
+		b          []byte
+		err        error
+		inpObj     asInpStruct
+		outpObj    *geojson.FeatureCollection
+		gen        *geojson.Feature
+		footprints *geojson.FeatureCollection
+		gsInpObj   gsInpStruct
+		// result     ebOutStruct
+	)
+
+	// clients to this function expect a JSON response
+	// containing the error message
+	handleError := func(errmsg string, status int) {
+		outpErr := pzsvc.Error{Message: errmsg}
+		b, err = json.Marshal(outpErr)
+		if err != nil {
+			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
+		}
+		http.Error(w, string(b), status)
+	}
+
+	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
+		handleError(pzsvc.TracedError("Error: pzsvc.ReadBodyJSON: "+err.Error()+".\nInput String: "+string(b)).Error(), http.StatusBadRequest)
+		return
+	}
+
+	if inpObj.PzAuth == "" {
+		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
+	}
+
+	if inpObj.DbAuth == "" {
+		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
+	}
+
+	if footprints, err = crawlFootprints(inpObj.Baseline); err != nil {
+		handleError(pzsvc.TracedError("Error: failed to crawl footprints: "+err.Error()).Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(footprints.Features) == 0 {
+		handleError(pzsvc.TracedError("No footprint features in input.").Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: Ingest the footprints, store the Piazza ID in outpObj
+
+	b, _ = geojson.Write(footprints)
+	fmt.Print(string(b) + "\n")
+	b, _ = json.Marshal(inpObj)
+	json.Unmarshal(b, &gsInpObj)
+
+	log.Printf("Input object: %#v", gsInpObj)
+	inpObj.Collections = geojson.NewFeatureCollection(nil)
+
+	for _, footprint := range footprints.Features {
+		fmt.Printf("Collecting feature %v\n", footprint.ID)
+		gsInpObj.MetaJSON = footprint
+		if gen, err = genShoreline(gsInpObj); err != nil {
+			handleError(pzsvc.TracedError(fmt.Sprintf("Received error %v on ID %v", err.Error(), gsInpObj.MetaJSON.ID)).Error(), http.StatusInternalServerError)
+		}
+		inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
+		fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, gen.PropertyString("shoreDataID"))
+	}
+
+	// if outpObj, err = genShorelineBatch(inpObj); err != nil {
+	// 	handleError(err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	fmt.Print("\nFinished shoreline generation. Starting assembly.")
+
+	if outpObj, err = assembleShorelines(inpObj); err != nil {
+		handleError(err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	b, _ = geojson.Write(outpObj)
+	w.Write(b)
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) {
 	var (
 		gjIfc interface{}
+		baseline,
 		collGeom,
 		collGeomPart,
 		clippedGeom *geos.Geometry
@@ -99,18 +186,22 @@ func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geojson.Fe
 		result *geojson.FeatureCollection
 		foundGeoms,
 		clippedGeoms []*geos.Geometry
-		count int
+		count       int
+		shoreDataID string
 	)
+	if baseline, err = geojsongeos.GeosFromGeoJSON(inpObj.Baseline); err != nil {
+		return nil, pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error())
+	}
 
 	log.Printf("baseline: %v", baseline.String())
 
 	result = geojson.NewFeatureCollection(nil)
 
-	for _, collection := range inpObj.Collections {
+	for _, collection := range inpObj.Collections.Features {
 		clippedGeoms = nil
 		foundGeoms = nil
-
-		if collGeom, err = geojsongeos.GeosFromGeoJSON(geojson.FromMap(collection.Geometry.(map[string]interface{}))); err != nil {
+		shoreDataID = collection.PropertyString("shoreDataID")
+		if collGeom, err = geojsongeos.GeosFromGeoJSON(collection.Geometry); err != nil {
 			log.Printf("%T", collection.Geometry)
 			log.Printf(pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error()).Error())
 			continue
@@ -134,35 +225,35 @@ func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geojson.Fe
 			}
 
 			if empty, err = clippedGeom.IsEmpty(); err != nil {
-				log.Printf(pzsvc.TracedError("Failed to determine if clipped geometry for %v " + collection.ShoreDataID + " is empty.\n" + err.Error()).Error())
+				log.Printf(pzsvc.TracedError("Failed to determine if clipped geometry for %v " + shoreDataID + " is empty.\n" + err.Error()).Error())
 				log.Printf("collGeomPart: %v", collGeomPart.String())
 				continue
 			} else if empty {
 				area, _ := collGeomPart.Area()
-				log.Printf("Clipped geometry for %v is empty (size: %v). Continuing.", collection.ShoreDataID, area)
+				log.Printf("Clipped geometry for %v is empty (size: %v). Continuing.", shoreDataID, area)
 				log.Printf("collGeomPart: %v", collGeomPart.String())
 				continue
 			}
 			clippedGeoms = append(clippedGeoms, clippedGeom)
 		}
 
-		if b, err = pzsvc.DownloadBytes(collection.ShoreDataID, inpObj.PzAddr, inpObj.PzAuth); err != nil {
-			log.Printf(pzsvc.TracedError("Failed to download shoreline " + collection.ShoreDataID + ".\n" + err.Error()).Error())
+		if b, err = pzsvc.DownloadBytes(shoreDataID, inpObj.PzAddr, inpObj.PzAuth); err != nil {
+			log.Printf(pzsvc.TracedError("Failed to download shoreline " + shoreDataID + ".\n" + err.Error()).Error())
 			continue
 		}
 
 		if gjIfc, err = geojson.Parse(b); err != nil {
-			log.Printf(pzsvc.TracedError("Failed to parse GeoJSON from " + collection.ShoreDataID + ".\n" + err.Error()).Error())
+			log.Printf(pzsvc.TracedError("Failed to parse GeoJSON from " + shoreDataID + ".\n" + err.Error()).Error())
 			continue
 		}
 
 		if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 			for _, clippedGeom = range clippedGeoms {
 				if currFc = findBestMatches(fc, clippedGeom, collGeom); len(currFc.Features) == 0 {
-					log.Printf("Found no matching shorelines for %v.", collection.ShoreDataID)
+					log.Printf("Found no matching shorelines for %v.", shoreDataID)
 				} else {
 					result.Features = append(result.Features, currFc.Features...)
-					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), collection.ShoreDataID)
+					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), shoreDataID)
 				}
 			}
 		} else {
@@ -172,7 +263,7 @@ func assembleShorelines(inpObj asInpStruct, baseline *geos.Geometry) *geojson.Fe
 			log.Printf(pzsvc.TracedError("Failed to create new collection containing" + string(len(foundGeoms)) + " geometries\n" + err.Error()).Error())
 		}
 	}
-	return result
+	return result, nil
 }
 
 func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geometry) *geojson.FeatureCollection {

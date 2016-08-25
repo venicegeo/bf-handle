@@ -16,6 +16,7 @@ package bf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -61,19 +62,15 @@ type gsOutpStruct struct {
 	Error       string      `json:"error"`
 }
 
-type ebOutpStruct struct {
-	Collections []gsOutpStruct `json:"collections"`
-	Error       string         `json:"error"`
-}
-
 // Execute executes a single shoreline detection
 // based on the metadata in a gsInpStruct
 func Execute(w http.ResponseWriter, r *http.Request) {
 	var (
-		b       []byte
-		err     error
-		inpObj  gsInpStruct
-		outpObj gsOutpStruct
+		b           []byte
+		err         error
+		inpObj      gsInpStruct
+		outpObj     gsOutpStruct
+		outpFeature *geojson.Feature
 	)
 
 	// clients to this function expect a JSON response
@@ -118,124 +115,37 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	outpObj = genShoreline(inpObj)
-	if outpObj.Error == "" {
+	if outpFeature, err = genShoreline(inpObj); err == nil {
+		outpObj.JobName = outpFeature.PropertyString("jobName")
+		outpObj.AlgoType = outpFeature.PropertyString("algoType")
+		outpObj.DbImgID = outpFeature.ID
+		outpObj.ImgCapDate = outpFeature.PropertyString("acquiredDate")
+		outpObj.Geometry = outpFeature.Geometry
+		outpObj.SensorName = outpFeature.PropertyString("sensorName")
+		outpObj.AlgoURL = outpFeature.PropertyString("algoURL")
+		outpObj.ShoreDataID = outpFeature.PropertyString("shoreDataID")
+		outpObj.ShoreDeplID = outpFeature.PropertyString("shoreDeplID")
+		outpObj.RGBloc = outpFeature.PropertyString("rgbLoc")
+
 		w.Header().Set("Content-Type", "application/json")
 		b, _ = json.Marshal(outpObj)
 		w.Write(b)
 	} else {
-		handleError(outpObj.Error, http.StatusInternalServerError)
+		handleError(err.Error(), http.StatusInternalServerError)
 	}
-}
-
-// ExecuteBatch executes a single shoreline detection
-// based on a GeoJSON object representing one or more geometries
-func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
-	var (
-		b       []byte
-		err     error
-		inpObj  gsInpStruct
-		outpObj ebOutpStruct
-	)
-
-	// clients to this function expect a JSON response
-	// containing the error message
-	handleError := func(errmsg string, status int) {
-		outpObj.Error = errmsg
-		b, err = json.Marshal(outpObj)
-		if err != nil {
-			b = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
-		}
-		http.Error(w, string(b), status)
-	}
-
-	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-		tracedError := pzsvc.TracedError("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(b))
-		handleError(tracedError.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// In this case the metadataJSON points to a feature containing the geometries to crawl over
-	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
-		tracedError := pzsvc.TracedError(`Error: Must specify one and only one of metaDataURL ("` + inpObj.MetaURL + `") and metaDataJSON.`)
-		handleError(tracedError.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if inpObj.MetaURL != "" {
-		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
-			tracedError := pzsvc.TracedError("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error())
-			handleError(tracedError.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-
-	inpObj.MetaJSON.ResolveGeometry()
-
-	if inpObj.PzAuth == "" {
-		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
-	}
-
-	if inpObj.DbAuth == "" {
-		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
-	}
-
-	outpObj = genShorelineBatch(inpObj)
-	fmt.Print("Finished batch process.")
-
-	if outpObj.Error == "" {
-		w.Header().Set("Content-Type", "application/json")
-		b, _ = json.Marshal(outpObj)
-		fmt.Print(string(b))
-		w.Write(b)
-	} else {
-		handleError(outpObj.Error, http.StatusInternalServerError)
-	}
-}
-
-func genShorelineBatch(inpObj gsInpStruct) ebOutpStruct {
-	var (
-		result ebOutpStruct
-		gen    gsOutpStruct
-		fc     *geojson.FeatureCollection
-		err    error
-	)
-
-	if fc, err = crawlFootprints(inpObj.MetaJSON); err != nil {
-		result.Error = "Error: failed to crawl footprints: " + err.Error()
-		return result
-	}
-
-	if len(fc.Features) == 0 {
-		result.Error = "No footprint features in input."
-		return result
-	}
-
-	for _, footprint := range fc.Features {
-		fmt.Printf("Collecting feature %v", footprint.ID)
-		inpObj.MetaJSON = footprint
-		gen = genShoreline(inpObj)
-		if gen.Error != "" {
-			result.Error = fmt.Sprintf("%v\nReceived error %v on ID %v", result.Error, inpObj.MetaJSON.ID, gen.Error)
-		}
-		result.Collections = append(result.Collections, gen)
-	}
-
-	if result.Error != "" {
-		result.Error = "Failures were detected in shoreline detections:" + result.Error
-	}
-	return result
 }
 
 // genShoreline serves as main function for this file, and is the
 // primary workhorse function of bf-handle as a whole.  It
 // processes raster images into geojson.
-func genShoreline(inpObj gsInpStruct) gsOutpStruct {
+func genShoreline(inpObj gsInpStruct) (*geojson.Feature, error) {
 	var (
-		outpObj gsOutpStruct
+		result  = inpObj.MetaJSON
 		rgbChan chan string
 		err     error
 		dataIDs []string
+		shoreDataID,
+		shoreDeplID string
 	)
 
 	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
@@ -243,39 +153,32 @@ func genShoreline(inpObj gsInpStruct) gsOutpStruct {
 		go rgbGen(inpObj, rgbChan)
 	}
 
-	outpObj.JobName = inpObj.JobName
-	outpObj.AlgoType = inpObj.AlgoType
-	outpObj.DbImgID = inpObj.MetaJSON.ID
-	outpObj.ImgCapDate = inpObj.MetaJSON.Properties["acquiredDate"].(string)
-	outpObj.Geometry = inpObj.MetaJSON.Geometry
-	outpObj.SensorName = inpObj.MetaJSON.Properties["sensorName"].(string)
-	outpObj.AlgoURL = inpObj.AlgoURL
+	result.Properties["jobName"] = inpObj.JobName
+	result.Properties["algoType"] = inpObj.AlgoType
+	result.Properties["algoURL"] = inpObj.AlgoURL
 
 	fmt.Println("bf-handle: running provision")
 	if dataIDs, err = provision(inpObj, nil); err != nil {
-		outpObj.Error = err.Error()
-		return outpObj
+		return result, err
 	}
 
 	fmt.Println("bf-handle: running Algo")
-	outpObj.ShoreDataID, outpObj.ShoreDeplID, err = runAlgo(inpObj, dataIDs)
-	if err != nil {
-		outpObj.Error = err.Error()
-		return outpObj
+	if shoreDataID, shoreDeplID, err = runAlgo(inpObj, dataIDs); err != nil {
+		return result, err
 	}
+	result.Properties["shoreDataID"] = shoreDataID
+	result.Properties["shoreDeplID"] = shoreDeplID
 
 	if rgbChan != nil {
 		fmt.Println("waiting for rgb")
 		rgbLoc := <-rgbChan
 		if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
-			outpObj.Error = rgbLoc
-			return outpObj
+			return result, errors.New(rgbLoc)
 		}
-		outpObj.RGBloc = rgbLoc
+		result.Properties["rgbLoc"] = rgbLoc
 	}
 
-	fmt.Println("outputting")
-	return outpObj
+	return result, nil
 }
 
 // provision uses the given image metadata to access the database where its image set is stored,
@@ -365,6 +268,8 @@ func runAlgo(inpObj gsInpStruct, dataIDs []string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
+
+	fmt.Printf("Completed algorithm %v; %v : %v", inpObj.MetaJSON.ID, dataID, deplID)
 
 	return dataID, deplID, nil
 }
