@@ -52,6 +52,8 @@ func main() {
 			bf.ExecuteBatch(w, r)
 		case "/prepareFootprints":
 			bf.PrepareFootprints(w, r)
+		case "/assembleShorelines":
+			bf.AssembleShorelines(w, r)
 		case "/newProductLine":
 			fmt.Println("newProduct triggered")
 			bf.NewProductLine(w, r)

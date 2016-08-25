@@ -321,10 +321,12 @@ func provision(inpObj gsInpStruct, bands []string) ([]string, error) {
 // pzsvc-ossim, but as that changes the case statement is going to get
 // bigger and uglier.
 func runAlgo(inpObj gsInpStruct, dataIDs []string) (string, string, error) {
-	var dataID, deplID string
-	var attMap map[string]string
-	var err error
-	hasFeatMeta := false
+	var (
+		dataID, deplID string
+		attMap         map[string]string
+		err            error
+		hasFeatMeta    = false
+	)
 	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
 		attMap, err = getMeta("", "", "", inpObj.MetaJSON)
