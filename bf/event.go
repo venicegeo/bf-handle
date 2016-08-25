@@ -32,19 +32,19 @@ import (
 
 type trigUIStruct struct {
 	BFinpObj     gsInpStruct `json:"bfInputJSON,omitempty"`
-	MaxX         string      `json:"maxX,omitempty"`
-	MinX         string      `json:"minX,omitempty"`
-	MaxY         string      `json:"maxY,omitempty"`
-	MinY         string      `json:"minY,omitempty"`
+	MaxX         string      `json:"maxX"`
+	MinX         string      `json:"minX"`
+	MaxY         string      `json:"maxY"`
+	MinY         string      `json:"minY"`
 	CloudCover   string      `json:"cloudCover,omitempty"`
 	MaxRes       string      `json:"maxRes,omitempty"`
 	MinRes       string      `json:"minRes,omitempty"`
-	MaxDate      string      `json:"maxDate,omitempty"`
-	MinDate      string      `json:"mainDate,omitempty"`
+	MaxDate      string      `json:"maxDate"`
+	MinDate      string      `json:"mainDate"`
 	SensorName   string      `json:"sensorName,omitempty"`
 	EventTypeIDs []string    `json:"eventTypeId,omitempty"`
 	ServiceID    string      `json:"serviceId,omitempty"`
-	TriggerID    string      `json:"triggerId,omitempty"`
+	TriggerID    string      `json:"Id,omitempty"`
 	CreatedBy    string      `json:"createdBy,omitempty"`
 	Name         string      `json:"name,omitempty"`
 }
@@ -291,7 +291,7 @@ func GetProductLines(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var outpObj struct {
-		TrigList []trigUIStruct `json:"triggerList"`
+		TrigList []trigUIStruct `json:"productLines"`
 	}
 
 	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
@@ -358,7 +358,7 @@ AddTriggerLoop:
 		handleOut(w, "Marshalling error: "+err.Error()+".", outpObj, http.StatusInternalServerError)
 		return
 	}
-	http.Error(w, string(b), http.StatusOK)
+	pzsvc.HTTPOut(w, string(b), http.StatusOK)
 	return
 }
 
@@ -376,6 +376,6 @@ func handleOut(w http.ResponseWriter, errmsg string, outpObj interface{}, status
 		outStr = `{"error":"` + errmsg + `",` + string(b[1:])
 	}
 
-	http.Error(w, outStr, status)
+	pzsvc.HTTPOut(w, outStr, status)
 	return
 }
