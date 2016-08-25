@@ -82,11 +82,20 @@ func main() {
 				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
-			outJobs := []string(nil)
+			outData := []string(nil)
 			for _, alert := range alertList {
-				outJobs = append(outJobs, alert.JobID)
+				var outpObj struct {
+					Data pzsvc.JobStatusResp `json:"data,omitempty"`
+				}
+				_, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuth, &outpObj)
+				if err != nil {
+					continue
+				}
+				if outpObj.Data.Status == "Success" && outpObj.Data.Result != nil{
+					outData = append(outData, outpObj.Data.Result.DataID)
+				}
 			}
-			b, _ := json.Marshal(outJobs)
+			b, _ := json.Marshal(outData)
 
 			pzsvc.HTTPOut(w, string(b), http.StatusOK)
 

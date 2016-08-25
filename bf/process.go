@@ -227,7 +227,7 @@ func genShorelineBatch(inpObj gsInpStruct) ebOutpStruct {
 	return result
 }
 
-// genShoreline serves as main function for this file, and is the
+// GenShoreline serves as main function for this file, and is the
 // primary workhorse function of bf-handle as a whole.  It
 // processes raster images into geojson.
 func genShoreline(inpObj gsInpStruct) gsOutpStruct {
