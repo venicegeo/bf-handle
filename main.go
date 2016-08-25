@@ -60,7 +60,9 @@ func main() {
 		case "/getProductLines":
 			fmt.Println("product line listing")
 			bf.GetProductLines(w, r)
-		case "/listProdLineJobs":
+		case "/resultsByImage":
+			bf.ResultsByImage(w, r)
+		case "/resultsByProductLine":
 			// extract trigger Id, number per page, and page length
 			// search alerts by trigger Id, order by createdOn, demarshal to list of appropriate objects
 			// build list of jobIDs
