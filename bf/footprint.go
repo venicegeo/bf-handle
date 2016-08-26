@@ -201,38 +201,38 @@ func clipFootprints(features []*geojson.Feature, geometry *geos.Geometry) []*geo
 
 func selfClip(features []*geojson.Feature) []*geojson.Feature {
 	var (
-		err                            error
-		gjGeometry                     interface{}
-		currentGeometry, totalGeometry *geos.Geometry
-		contains                       bool
+		err        error
+		gjGeometry interface{}
+		currGeometry,
+		diffGeom,
+		totalGeom *geos.Geometry
+		contains bool
 	)
-	if totalGeometry, err = geos.EmptyPolygon(); err != nil {
+	if totalGeom, err = geos.EmptyPolygon(); err != nil {
 		log.Print(err.Error())
 		return features
 	}
 	for _, feature := range features {
-		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+		if currGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 			log.Panic(err.Error())
 			return features
 		}
-		// log.Print(currentGeometry.String())
-		if contains, err = totalGeometry.Contains(currentGeometry); err != nil {
+		if contains, err = totalGeom.Contains(currGeometry); err != nil {
 			log.Panic(err.Error())
 			return features
 		} else if !contains {
-			// log.Printf("Current: %v", currentGeometry.String())
-			if currentGeometry, err = currentGeometry.Difference(totalGeometry); err != nil {
+			if diffGeom, err = currGeometry.Difference(totalGeom); err != nil {
+				log.Printf("totalGeometry: %v", totalGeom.String())
+				log.Printf("currentGeometry: %v", currGeometry.String())
 				log.Panic(err.Error())
 				return features
 			}
-			// log.Printf("Difference: %v", currentGeometry.String())
-			if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
+			if gjGeometry, err = geojsongeos.GeoJSONFromGeos(diffGeom); err != nil {
 				log.Panic(err.Error())
 				return features
 			}
 			feature.Geometry = gjGeometry
-			// log.Printf("GeoJSON: %v", feature.String())
-			if totalGeometry, err = totalGeometry.Union(currentGeometry); err != nil {
+			if totalGeom, err = totalGeom.Union(currGeometry); err != nil {
 				log.Panic(err.Error())
 				return features
 			}

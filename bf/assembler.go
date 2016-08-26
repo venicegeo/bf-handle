@@ -93,9 +93,10 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		b          []byte
 		err        error
 		inpObj     asInpStruct
-		outpObj    *geojson.FeatureCollection
+		shorelines *geojson.FeatureCollection
 		gen        *geojson.Feature
 		footprints *geojson.FeatureCollection
+		result     ebOutStruct
 		gsInpObj   gsInpStruct
 		shoreDataID,
 		shoreDeplID string
@@ -135,10 +136,13 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Ingest the footprints, store the Piazza ID in outpObj
-
+	// Ingest the footprints, store the Piazza ID in outpObj
 	b, _ = geojson.Write(footprints)
-	fmt.Print(string(b) + "\n")
+	if result.FootprintsID, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err != nil {
+		log.Printf(pzsvc.TracedError("Failed to ingest footprint GeoJSON: " + err.Error()).Error())
+		log.Print(string(b))
+	}
+
 	b, _ = json.Marshal(inpObj)
 	json.Unmarshal(b, &gsInpObj)
 
@@ -166,19 +170,21 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// if outpObj, err = genShorelineBatch(inpObj); err != nil {
-	// 	handleError(err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
+	log.Print("Finished shoreline generation. Starting assembly.")
 
-	fmt.Print("\nFinished shoreline generation. Starting assembly.")
-
-	if outpObj, err = assembleShorelines(inpObj); err != nil {
+	if shorelines, err = assembleShorelines(inpObj); err != nil {
 		handleError(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	b, _ = geojson.Write(outpObj)
+	// Ingest the shorelines, store the Piazza ID in outpObj
+	b, _ = geojson.Write(shorelines)
+	if result.ShorelinesID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
+		b, _ = json.Marshal(result)
+	} else {
+		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
+	}
+
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
 }
