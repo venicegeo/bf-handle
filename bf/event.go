@@ -18,16 +18,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	//	"io/ioutil"
-	//	"log"
 	"net/http"
 	"os"
 	"strconv"
-	//	"time"
 
 	"github.com/venicegeo/pzsvc-lib"
-	//	"github.com/venicegeo/geojson-go/geojson"
-	//	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
 type trigUIStruct struct {
@@ -362,20 +357,4 @@ AddTriggerLoop:
 	return
 }
 
-// handleOut is a function for making sure that output is
-// handled in a consistent manner.
-func handleOut(w http.ResponseWriter, errmsg string, outpObj interface{}, status int) {
-	b, err := json.Marshal(outpObj)
-	var outStr string
 
-	if err != nil {
-		outStr = `{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`
-	} else {
-		// Rather than trying to manage any sort fo pretense at polymorphism in Go,
-		// we just slice off the starter open-brace, and slap the error in manually.
-		outStr = `{"error":"` + errmsg + `",` + string(b[1:])
-	}
-
-	pzsvc.HTTPOut(w, outStr, status)
-	return
-}
