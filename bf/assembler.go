@@ -138,6 +138,8 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 
 	for _, feature := range footprints.Features {
 		delete(feature.Properties, "bands")
+		delete(feature.Properties, "cache.shoreDataID")
+		delete(feature.Properties, "cache.shoreDeplID")
 	}
 
 	// Ingest the footprints, store the Piazza ID in outpObj
