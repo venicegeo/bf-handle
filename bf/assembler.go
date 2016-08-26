@@ -24,6 +24,7 @@ import (
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -96,7 +97,8 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		gen        *geojson.Feature
 		footprints *geojson.FeatureCollection
 		gsInpObj   gsInpStruct
-		// result     ebOutStruct
+		shoreDataID,
+		shoreDeplID string
 	)
 
 	// clients to this function expect a JSON response
@@ -144,13 +146,24 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
 	for _, footprint := range footprints.Features {
-		fmt.Printf("Collecting feature %v\n", footprint.ID)
-		gsInpObj.MetaJSON = footprint
-		if gen, err = genShoreline(gsInpObj); err != nil {
-			handleError(pzsvc.TracedError(fmt.Sprintf("Received error %v on ID %v", err.Error(), gsInpObj.MetaJSON.ID)).Error(), http.StatusInternalServerError)
+		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
+			fmt.Printf("Collecting feature %v\n", footprint.ID)
+			gsInpObj.MetaJSON = footprint
+			if gen, err = genShoreline(gsInpObj); err != nil {
+				log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
+				continue
+			}
+			inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
+			shoreDataID = gen.PropertyString("shoreDataID")
+			shoreDeplID = gen.PropertyString("shoreDeplID")
+			fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
+			go addCache(footprint.ID, shoreDataID, shoreDeplID)
+		} else {
+			fmt.Printf("Found Data ID %v for feature %v\n", shoreDataID, footprint.ID)
+			footprint.Properties["shoreDataID"] = shoreDataID
+			footprint.Properties["shoreDeplID"] = shoreDeplID
+			inpObj.Collections.Features = append(inpObj.Collections.Features, footprint)
 		}
-		inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
-		fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, gen.PropertyString("shoreDataID"))
 	}
 
 	// if outpObj, err = genShorelineBatch(inpObj); err != nil {
@@ -193,8 +206,6 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 		return nil, pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error())
 	}
 
-	log.Printf("baseline: %v", baseline.String())
-
 	result = geojson.NewFeatureCollection(nil)
 
 	for _, collection := range inpObj.Collections.Features {
@@ -231,7 +242,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 			} else if empty {
 				area, _ := collGeomPart.Area()
 				log.Printf("Clipped geometry for %v is empty (size: %v). Continuing.", shoreDataID, area)
-				log.Printf("collGeomPart: %v", collGeomPart.String())
+				// log.Printf("collGeomPart: %v", collGeomPart.String())
 				continue
 			}
 			clippedGeoms = append(clippedGeoms, clippedGeom)
@@ -306,4 +317,23 @@ func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geome
 		}
 	}
 	return result
+}
+
+func addCache(imageID, shoreDataID, shoreDeplID string) {
+	var (
+		feature *geojson.Feature
+		err     error
+	)
+	// Get a clean copy of the image metadata
+	if feature, err = catalog.GetImageMetadata(imageID); err != nil {
+		log.Printf(pzsvc.TracedError("Failed to retrieve image metadata so that we could cache results: " + err.Error()).Error())
+	}
+
+	feature.Properties["cache.shoreDataID"] = shoreDataID
+	feature.Properties["cache.shoreDeplID"] = shoreDeplID
+
+	// re-store the feature
+	if _, err = catalog.StoreFeature(feature, true); err != nil {
+		log.Printf(pzsvc.TracedError("Failed to store image metadata with cached results: " + err.Error()).Error())
+	}
 }
