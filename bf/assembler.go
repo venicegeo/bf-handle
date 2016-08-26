@@ -136,6 +136,10 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, feature := range footprints.Features {
+		delete(feature.Properties, "bands")
+	}
+
 	// Ingest the footprints, store the Piazza ID in outpObj
 	b, _ = geojson.Write(footprints)
 	if result.FootprintsID, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err != nil {
