@@ -60,7 +60,9 @@ func main() {
 		case "/getProductLines":
 			fmt.Println("product line listing")
 			bf.GetProductLines(w, r)
-		case "/listProdLineJobs":
+		case "/resultsByImage":
+			bf.ResultsByImage(w, r)
+		case "/resultsByProductLine":
 			// extract trigger Id, number per page, and page length
 			// search alerts by trigger Id, order by createdOn, demarshal to list of appropriate objects
 			// build list of jobIDs
@@ -84,11 +86,20 @@ func main() {
 				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
-			outJobs := []string(nil)
+			outData := []string(nil)
 			for _, alert := range alertList {
-				outJobs = append(outJobs, alert.JobID)
+				var outpObj struct {
+					Data pzsvc.JobStatusResp `json:"data,omitempty"`
+				}
+				_, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuth, &outpObj)
+				if err != nil {
+					continue
+				}
+				if outpObj.Data.Status == "Success" && outpObj.Data.Result != nil{
+					outData = append(outData, outpObj.Data.Result.DataID)
+				}
 			}
-			b, _ := json.Marshal(outJobs)
+			b, _ := json.Marshal(outData)
 
 			pzsvc.HTTPOut(w, string(b), http.StatusOK)
 
