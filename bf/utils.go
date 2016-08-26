@@ -17,13 +17,10 @@ package bf
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/venicegeo/pzsvc-lib"
 )
-
-type marshErrStruct struct {
-	Error	string	
-}
 
 // handleOut is a function for making sure that output is
 // handled in a consistent manner.
@@ -32,15 +29,19 @@ func handleOut(w http.ResponseWriter, errmsg string, outpObj interface{}, status
 	var outStr string
 
 	if err != nil {
-		
-		
-		outStr = `{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`
+		outStr = `{"error":"json.Marshal error: ` + jsonEscString(err.Error()) + `", "baseError":"` + jsonEscString(errmsg) + `"}`
 	} else {
 		// Rather than trying to manage any sort of pretense at polymorphism in Go,
 		// we just slice off the starter open-brace, and slap the error in manually.
-		outStr = `{"error":"` + errmsg + `",` + string(b[1:])
+		outStr = `{"error":"` + jsonEscString(errmsg) + `",` + string(b[1:])
 	}
 
 	pzsvc.HTTPOut(w, outStr, status)
 	return
+}
+
+func jsonEscString(modString string) string {
+	modString = strings.Replace(modString, `\`, `\\`, -1)
+	modString = strings.Replace(modString, `"`, `\"`, -1)
+	return modString
 }
