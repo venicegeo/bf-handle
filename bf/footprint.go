@@ -73,112 +73,93 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 	var (
 		err error
-		sourceGeometry,
 		currentGeometry,
-		lineString,
-		polygon,
+		footprintRegion,
+		captured, // The area currently covered by selected images
+		points,
 		point *geos.Geometry
-		holes             []*geos.Geometry
-		pointCount        int
-		contains          bool
-		bestImage         *geojson.Feature
-		bestImages        *geojson.FeatureCollection
-		currentFootprints *geojson.FeatureCollection
+		pointCount int
+		contains   bool
+		bestImage  *geojson.Feature
+		bestImages *geojson.FeatureCollection
 	)
 
 	bestImages = geojson.NewFeatureCollection(nil)
-	switch gj := gjIfc.(type) {
-	case *geojson.GeometryCollection:
-		for _, geometry := range gj.Geometries {
-			if currentFootprints, err = crawlFootprints(geometry); err == nil {
-				bestImages.Features = append(bestImages.Features, currentFootprints.Features...)
-			} else {
-				return nil, pzsvc.TracedError(err.Error())
-			}
-		}
-	case *geojson.FeatureCollection:
-		for _, feature := range gj.Features {
-			if currentFootprints, err = crawlFootprints(feature); err == nil {
-				bestImages.Features = append(bestImages.Features, currentFootprints.Features...)
-			} else {
-				return nil, pzsvc.TracedError(err.Error())
-			}
-		}
-	case *geojson.MultiPolygon, *geojson.Feature, *geojson.LineString, *geojson.Polygon:
-		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		if sourceGeometry, err = sourceGeometry.Buffer(0.25); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		if polygon, err = geos.EmptyPolygon(); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		if lineString, err = sourceGeometry.Shell(); err != nil {
-			log.Printf("Shell for %v failed: %v", sourceGeometry.String(), err.Error())
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		if pointCount, err = lineString.NPoint(); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		for inx := 0; inx < pointCount; inx++ {
-			if point, err = lineString.Point(inx); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
-			}
-			if contains, err = polygon.Contains(point); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
-			} else if contains {
-				continue
-			}
-			if bestImage = getBestImage(point); bestImage == nil {
-				log.Print("Didn't get a candidate image.")
-			} else {
-				bestImages.Features = append(bestImages.Features, bestImage)
-				if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
-					return nil, pzsvc.TracedError(err.Error())
-				}
-				if polygon, err = polygon.Union(currentGeometry); err != nil {
-					return nil, pzsvc.TracedError(err.Error())
-				}
-			}
-		}
-		if holes, err = sourceGeometry.Holes(); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
-		}
-		for _, hole := range holes {
-			if pointCount, err = hole.NPoint(); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
-			}
-			for inx := 0; inx < pointCount; inx++ {
-				if point, err = lineString.Point(inx); err != nil {
-					return nil, pzsvc.TracedError(err.Error())
-				}
-				if contains, err = polygon.Contains(point); err != nil {
-					return nil, pzsvc.TracedError(err.Error())
-				} else if contains {
-					continue
-				}
-				if bestImage = getBestImage(point); bestImage == nil {
-					log.Print("Didn't get a candidate image.")
-				} else {
-					bestImages.Features = append(bestImages.Features, bestImage)
-					if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
-						return nil, pzsvc.TracedError(err.Error())
-					}
-					polygon, err = polygon.Union(currentGeometry)
-				}
-			}
-		}
-		sort.Sort(ByScore(bestImages.Features))
-		bestImages.Features = selfClip(bestImages.Features)
-		bestImages.Features = clipFootprints(bestImages.Features, sourceGeometry)
-	case map[string]interface{}:
-		return crawlFootprints(geojson.FromMap(gj))
-	default:
-		return nil, pzsvc.TracedError(fmt.Sprintf("Cannot accept input of %t", gjIfc))
+	if captured, err = geos.EmptyPolygon(); err != nil {
+		return nil, pzsvc.TracedError(err.Error())
 	}
+	if footprintRegion, err = getFootprintRegion(gjIfc, 0.25); err != nil {
+		return nil, err
+	}
+	if points, err = geojsongeos.PointCloud(footprintRegion); err != nil {
+		return nil, err
+	}
+	if pointCount, err = points.NGeometry(); err != nil {
+		return nil, pzsvc.TracedError(err.Error())
+	}
+	for inx := 0; inx < pointCount; inx++ {
+		if point, err = points.Geometry(inx); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		}
+		if contains, err = captured.Contains(point); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		} else if contains {
+			continue
+		}
+		if bestImage = getBestImage(point); bestImage == nil {
+			log.Printf("Didn't get a candidate image for point %v.", point.String())
+		} else {
+			bestImages.Features = append(bestImages.Features, bestImage)
+			if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
+				return nil, pzsvc.TracedError(err.Error())
+			}
+			if captured, err = captured.Union(currentGeometry); err != nil {
+				return nil, pzsvc.TracedError(err.Error())
+			}
+		}
+	}
+	sort.Sort(ByScore(bestImages.Features))
+	bestImages.Features = selfClip(bestImages.Features)
+	bestImages.Features = clipFootprints(bestImages.Features, footprintRegion)
 
 	return bestImages, nil
+}
+
+func getFootprintRegion(input interface{}, buffer float64) (*geos.Geometry, error) {
+	var (
+		geometries []*geos.Geometry
+		geom,
+		collection,
+		result *geos.Geometry
+		err error
+	)
+	switch it := input.(type) {
+	case *geojson.FeatureCollection:
+		for _, feature := range it.Features {
+			if geom, err = getFootprintRegion(feature, buffer); err != nil {
+				return nil, pzsvc.TracedError(err.Error())
+			}
+			geometries = append(geometries, geom)
+		}
+		if collection, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, geometries...); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		}
+		if result, err = collection.Buffer(0); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		}
+	case map[string]interface{}:
+		return getFootprintRegion(geojson.FromMap(it), buffer)
+	case *geojson.Feature, *geojson.Point, *geojson.LineString, *geojson.Polygon, *geojson.MultiPoint, *geojson.MultiLineString, *geojson.MultiPolygon, *geojson.GeometryCollection:
+		if geom, err = geojsongeos.GeosFromGeoJSON(it); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		}
+		if result, err = geom.Buffer(buffer); err != nil {
+			return nil, pzsvc.TracedError(err.Error())
+		}
+	default:
+		return nil, pzsvc.TracedError(fmt.Sprintf("Cannot create point cloud from %T.", input))
+	}
+	return result, nil
 }
 
 func clipFootprints(features []*geojson.Feature, geometry *geos.Geometry) []*geojson.Feature {
