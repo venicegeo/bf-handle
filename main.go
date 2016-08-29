@@ -58,9 +58,8 @@ func main() {
 			bf.NewProductLine(w, r)
 		case "/getProductLines":
 			bf.GetProductLines(w, r)
-		case "/resultsByImage":
-			fmt.Println("image results")
-			bf.ResultsByImage(w, r)
+		case "/resultsByScene":
+			bf.ResultsByScene(w, r)
 		case "/resultsByProductLine":
 			// extract trigger Id, number per page, and page length
 			// search alerts by trigger Id, order by createdOn, demarshal to list of appropriate objects
@@ -94,7 +93,7 @@ func main() {
 				if err != nil {
 					continue
 				}
-				if outpObj.Data.Status == "Success" && outpObj.Data.Result != nil{
+				if outpObj.Data.Status == "Success" && outpObj.Data.Result != nil {
 					outData = append(outData, outpObj.Data.Result.DataID)
 				}
 			}

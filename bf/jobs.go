@@ -57,8 +57,8 @@ func resultsByImageID(imageID, pzAddr, pzAuth string) ([]string, error) {
 	return outDataIds, nil
 }
 
-// ResultsByImage ...
-func ResultsByImage(w http.ResponseWriter, r *http.Request) {
+// ResultsByScene ...
+func ResultsByScene(w http.ResponseWriter, r *http.Request) {
 	var inpObj imageInpStruct
 	byts, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
