@@ -93,9 +93,10 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		b          []byte
 		err        error
 		inpObj     asInpStruct
-		outpObj    *geojson.FeatureCollection
+		shorelines *geojson.FeatureCollection
 		gen        *geojson.Feature
 		footprints *geojson.FeatureCollection
+		result     ebOutStruct
 		gsInpObj   gsInpStruct
 		shoreDataID,
 		shoreDeplID string
@@ -135,10 +136,12 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Ingest the footprints, store the Piazza ID in outpObj
+	// Ingest the footprints, store the Piazza ID in outpObj
+	if result.FootprintsID, b, err = writeFootprints(footprints, inpObj); err != nil {
+		log.Printf(pzsvc.TracedError("Failed to ingest footprint GeoJSON: " + err.Error()).Error())
+		log.Print(string(b))
+	}
 
-	b, _ = geojson.Write(footprints)
-	fmt.Print(string(b) + "\n")
 	b, _ = json.Marshal(inpObj)
 	json.Unmarshal(b, &gsInpObj)
 
@@ -166,21 +169,54 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// if outpObj, err = genShorelineBatch(inpObj); err != nil {
-	// 	handleError(err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
+	log.Print("Finished shoreline generation. Starting assembly.")
 
-	fmt.Print("\nFinished shoreline generation. Starting assembly.")
-
-	if outpObj, err = assembleShorelines(inpObj); err != nil {
+	if shorelines, err = assembleShorelines(inpObj); err != nil {
 		handleError(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	b, _ = geojson.Write(outpObj)
+	// Ingest the shorelines, store the Piazza ID in outpObj
+	b, _ = geojson.Write(shorelines)
+	if result.ShorelinesID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
+		b, _ = json.Marshal(result)
+	} else {
+		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
+	}
+
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
+}
+
+func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) (string, []byte, error) {
+	var (
+		writeFc    = geojson.NewFeatureCollection(nil)
+		feature    *geojson.Feature
+		properties map[string]interface{}
+		b          []byte
+		result     string
+		err        error
+	)
+
+	// We can't write some properties to Piazza
+	for _, footprint := range footprints.Features {
+		properties = make(map[string]interface{})
+		for key, property := range footprint.Properties {
+			switch key {
+			case "bands", "cache.shoreDataID", "cache.shoreDeplID":
+				continue
+			default:
+				properties[key] = property
+			}
+		}
+		feature = geojson.NewFeature(footprint.Geometry, footprint.ID, properties)
+		writeFc.Features = append(writeFc.Features, feature)
+	}
+
+	// Ingest the footprints, store the Piazza ID in outpObj
+	b, _ = geojson.Write(writeFc)
+	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil)
+	return result, b, err
 }
 
 func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) {
