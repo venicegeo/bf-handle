@@ -17,7 +17,7 @@ package bf
 import (
 	"net/http"
 
-	"github.com/venicegeo/pzsvc-lib"	
+	"github.com/venicegeo/pzsvc-lib"
 )
 
 /*
@@ -27,36 +27,54 @@ reprocess them all the time.
 */
 
 type imageInpStruct struct {
-	ImageID	string	`json:"imageId"`
-	PzAddr	string	`json:"pzAddr"`
-	PzAuth	string	`json:"pzAuth"`
+	ImageID string `json:"imageId"`
+	PzAddr  string `json:"pzAddr"`
+	PzAuth  string `json:"pzAuth"`
+}
+
+type imageOutpStruct struct {
+	DataIDs []string `json:"dataIds"`
 }
 
 // resultsByImageId takes an imageId (as per pzsvc-image-catalog) and the necessary information
 // for accessing Piazza, and returns a list of bf-handle results in the form of dataIds.
 func resultsByImageID(imageID, pzAddr, pzAuth string) ([]string, error) {
-	
+
 	files := pzsvc.FileDataList{}
-	
 	queryStr := `{"query":{"bool":{"must":[{"match":{"dataResource.dataType.content":"` +
-				imageID +
-				`"}},{"match":{"dataResource.dataType.type":"text"}}]}}}`
-	
-	_, err := pzsvc.RequestKnownJSON("POST", queryStr, pzAddr, pzAuth, files)
+		imageID +
+		`"}},{"match":{"dataResource.dataType.type":"text"}}]}}}`
+
+	_, err := pzsvc.RequestKnownJSON("POST", queryStr, pzAddr+"/data/query", pzAuth, &files)
 	if err != nil {
 		return nil, pzsvc.AddRef(err)
 	}
+
 	outDataIds := make([]string, len(files.Data))
-	for i := range (files.Data) {
-		outDataIds[i] = files.Data[i].DataID
+	for i, val := range files.Data {
+		outDataIds[i] = val.DataID
 	}
 	return outDataIds, nil
 }
 
+// ResultsByScene ...
+func ResultsByScene(w http.ResponseWriter, r *http.Request) {
+	var inpObj imageInpStruct
+	byts, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
+	if err != nil {
+		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".\nInput String: "+string(byts), nil, http.StatusBadRequest)
+		return
+	}
 
-// ResultsByImage ...
-func ResultsByImage (w http.ResponseWriter, r *http.Request)  {
-	
+	outDataIds, err := resultsByImageID(inpObj.ImageID, inpObj.PzAddr, inpObj.PzAuth)
+	outObj := imageOutpStruct{DataIDs: outDataIds}
+	if err != nil {
+		handleOut(w, "resultsByImageID error: "+err.Error(), outObj, http.StatusInternalServerError)
+		return
+	}
+
+	handleOut(w, "", outObj, http.StatusOK)
+
 }
 
 // 4 *** struct for daterange max/min(X/Y) and other search parameters

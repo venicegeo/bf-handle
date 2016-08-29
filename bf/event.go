@@ -37,26 +37,13 @@ type trigUIStruct struct {
 	MaxDate      string      `json:"maxDate"`
 	MinDate      string      `json:"mainDate"`
 	SensorName   string      `json:"sensorName,omitempty"`
+	SpatFilter   string      `json:"spatialFilter"`
 	EventTypeIDs []string    `json:"eventTypeId,omitempty"`
 	ServiceID    string      `json:"serviceId,omitempty"`
 	TriggerID    string      `json:"Id,omitempty"`
 	CreatedBy    string      `json:"createdBy,omitempty"`
 	Name         string      `json:"name,omitempty"`
 }
-
-/*
-- Format for the feeding EventType?
---- "imageID":"string"
---- "acquiredDate":"string"
---- "cloudCover":"long"
---- "resolution":"long"
---- "sensorName":"string"
---- "minx":"long"
---- "miny":"long"
---- "maxx":"long"
---- "maxy":"long"
---- "link":"string"
-*/
 
 func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 
@@ -288,6 +275,7 @@ func GetProductLines(w http.ResponseWriter, r *http.Request) {
 	var outpObj struct {
 		TrigList []trigUIStruct `json:"productLines"`
 	}
+	outpObj.TrigList = make([]trigUIStruct, 0)
 
 	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
@@ -356,5 +344,3 @@ AddTriggerLoop:
 	pzsvc.HTTPOut(w, string(b), http.StatusOK)
 	return
 }
-
-
