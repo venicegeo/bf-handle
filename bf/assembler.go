@@ -148,9 +148,9 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Input object: %#v", gsInpObj)
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
-	for _, footprint := range footprints.Features {
+	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
-			fmt.Printf("Collecting feature %v\n", footprint.ID)
+			fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx, len(footprints.Features))
 			gsInpObj.MetaJSON = footprint
 			if gen, err = genShoreline(gsInpObj); err != nil {
 				log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
