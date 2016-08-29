@@ -55,12 +55,11 @@ func main() {
 		case "/assembleShorelines":
 			bf.AssembleShorelines(w, r)
 		case "/newProductLine":
-			fmt.Println("newProduct triggered")
 			bf.NewProductLine(w, r)
 		case "/getProductLines":
-			fmt.Println("product line listing")
 			bf.GetProductLines(w, r)
 		case "/resultsByImage":
+			fmt.Println("image results")
 			bf.ResultsByImage(w, r)
 		case "/resultsByProductLine":
 			// extract trigger Id, number per page, and page length
