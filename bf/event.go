@@ -208,6 +208,10 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	trigOutp.EventTypeIDs = append(trigInp.Condition.EventTypeIDs)
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
 	trigOutp.CreatedBy = trigInp.CreatedBy
+	trigOutp.MinX = math.NaN()
+	trigOutp.MaxX = math.NaN()
+	trigOutp.MinY = math.NaN()
+	trigOutp.MaxY = math.NaN()
 
 	var bfInpObj gsInpStruct
 	content := trigInp.Job.JobType.Data.DataInputs["body"].Content
@@ -234,9 +238,6 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 			switch rKey {
 			case "data.cloudCover":
 				trigOutp.CloudCover = toString(rVal.LTE)
-				if trigOutp.CloudCover == "" {
-					return nil, errors.New(`extractTrigReqStruct: must have cloudCover` + err.Error())
-				}
 			case "data.minX":
 				trigOutp.MaxX, err = toFloat(rVal.LTE)
 				if err != nil {
@@ -263,9 +264,6 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 			case "data.acquiredDate":
 				trigOutp.MaxDate = rVal.LTE.(string)
 				trigOutp.MinDate = rVal.GTE.(string)
-				if trigOutp.MinDate == "" {
-					return nil, errors.New(`extractTrigReqStruct: must have minDate` + err.Error())
-				}
 			default:
 			}
 		}
@@ -372,6 +370,11 @@ AddTriggerLoop:
 		newTrig, err = extractTrigReqStruct(trig)
 		if err != nil {
 			fmt.Println(err.Error())
+			continue AddTriggerLoop
+		}
+		trigFltTest := newTrig.MinX + newTrig.MinY + newTrig.MaxX + newTrig.MaxY
+		if newTrig.CloudCover == "" || newTrig.MinDate == "" || math.IsNaN(trigFltTest) {
+			fmt.Println(errors.New("Trigger not containing required parameter"))
 			continue AddTriggerLoop
 		}
 		outpObj.TrigList = append(outpObj.TrigList, *newTrig)
