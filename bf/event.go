@@ -32,7 +32,7 @@ type trigUIStruct struct {
 	MinX         float64     `json:"minX"`
 	MaxY         float64     `json:"maxY"`
 	MinY         float64     `json:"minY"`
-	CloudCover   string      `json:"cloudCover"`
+	CloudCover   float64     `json:"cloudCover"`
 	MaxRes       string      `json:"maxRes,omitempty"`
 	MinRes       string      `json:"minRes,omitempty"`
 	MaxDate      string      `json:"maxDate"`
@@ -139,7 +139,7 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 		Data       newTrigData `json:"data"`
 	}
 
-	inpObj := trigUIStruct{MinX: math.NaN(), MinY: math.NaN(), MaxX: math.NaN(), MaxY: math.NaN()}
+	inpObj := trigUIStruct{MinX: math.NaN(), MinY: math.NaN(), MaxX: math.NaN(), MaxY: math.NaN(), CloudCover: math.NaN()}
 	outpObj := outpType{}
 	idObj := newTrigOut{}
 
@@ -156,7 +156,7 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 		handleOut(w, "Error: Must specify minDate.", nil, http.StatusBadRequest)
 		return
 	}
-	if inpObj.CloudCover == "" {
+	if math.IsNaN(inpObj.CloudCover) {
 		handleOut(w, "Error: Must specify cloudCover.", nil, http.StatusBadRequest)
 		return
 	}
@@ -208,6 +208,7 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	trigOutp.EventTypeIDs = append(trigInp.Condition.EventTypeIDs)
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
 	trigOutp.CreatedBy = trigInp.CreatedBy
+	trigOutp.CloudCover = math.NaN()
 	trigOutp.MinX = math.NaN()
 	trigOutp.MaxX = math.NaN()
 	trigOutp.MinY = math.NaN()
@@ -237,7 +238,10 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		for rKey, rVal = range query.Range {
 			switch rKey {
 			case "data~cloudCover":
-				trigOutp.CloudCover = toString(rVal.LTE)
+				trigOutp.CloudCover, err = toFloat(rVal.LTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad cloudCover` + err.Error())
+				}
 			case "data~minX":
 				trigOutp.MaxX, err = toFloat(rVal.LTE)
 				if err != nil {
@@ -372,8 +376,8 @@ AddTriggerLoop:
 			fmt.Println(err.Error())
 			continue AddTriggerLoop
 		}
-		trigFltTest := newTrig.MinX + newTrig.MinY + newTrig.MaxX + newTrig.MaxY
-		if newTrig.CloudCover == "" || newTrig.MinDate == "" || math.IsNaN(trigFltTest) {
+		trigFltTest := newTrig.MinX + newTrig.MinY + newTrig.MaxX + newTrig.MaxY + newTrig.CloudCover
+		if newTrig.MinDate == "" || math.IsNaN(trigFltTest) {
 			fmt.Println(errors.New("Trigger not containing required parameter"))
 			continue AddTriggerLoop
 		}
