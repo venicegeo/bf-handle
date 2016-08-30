@@ -289,11 +289,14 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 	return bestImage
 }
 
+var date2015 = time.Date(2015, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+
 func imageScore(image *geojson.Feature) float64 {
 	var (
 		result       float64
 		acquiredDate time.Time
 		err          error
+		baseline     = 1.0
 	)
 	cloudCover := image.PropertyFloat("cloudCover")
 	acquiredDateString := image.PropertyString("acquiredDate")
@@ -301,8 +304,14 @@ func imageScore(image *geojson.Feature) float64 {
 		log.Printf("Received invalid date of %v: ", acquiredDateString)
 		return 0.0
 	}
+	// Landsat images older than 2015 are unlikely to be in the S3 archive
+	// unless they happen to have very good cloud cover so discourage them
 	acquiredDateUnix := acquiredDate.Unix()
+	if acquiredDateUnix < date2015 {
+		baseline = 0.5
+	}
 	now := time.Now().Unix()
-	result = 1 - (math.Sqrt(cloudCover/100.0) + (float64(now-acquiredDateUnix) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)))
+
+	result = baseline - (math.Sqrt(cloudCover/100.0) + (float64(now-acquiredDateUnix) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)))
 	return result
 }
