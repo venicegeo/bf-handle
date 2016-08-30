@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,17 +28,17 @@ import (
 
 type trigUIStruct struct {
 	BFinpObj     gsInpStruct `json:"bfInputJSON,omitempty"`
-	MaxX         string      `json:"maxX"`
-	MinX         string      `json:"minX"`
-	MaxY         string      `json:"maxY"`
-	MinY         string      `json:"minY"`
-	CloudCover   string      `json:"cloudCover,omitempty"`
+	MaxX         float64     `json:"maxX"`
+	MinX         float64     `json:"minX"`
+	MaxY         float64     `json:"maxY"`
+	MinY         float64     `json:"minY"`
+	CloudCover   float64     `json:"cloudCover"`
 	MaxRes       string      `json:"maxRes,omitempty"`
 	MinRes       string      `json:"minRes,omitempty"`
 	MaxDate      string      `json:"maxDate"`
-	MinDate      string      `json:"mainDate"`
+	MinDate      string      `json:"minDate"`
 	SensorName   string      `json:"sensorName,omitempty"`
-	SpatFilter   string      `json:"spatialFilter"`
+	SpatFilter   string      `json:"spatialFilterId"`
 	EventTypeIDs []string    `json:"eventTypeId,omitempty"`
 	ServiceID    string      `json:"serviceId,omitempty"`
 	TriggerID    string      `json:"Id,omitempty"`
@@ -57,27 +58,27 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 		sensorMatch := map[string]string{"data.sensorName": trigData.SensorName}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: sensorMatch, Range: nil})
 	}
-	if trigData.CloudCover != "" {
+	{
 		cClause := pzsvc.CompClause{LTE: trigData.CloudCover, GTE: nil, Format: ""}
 		cloudRange := map[string]pzsvc.CompClause{"data.cloudCover": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: cloudRange})
 	}
-	if trigData.MaxX != "" {
+	{
 		cClause := pzsvc.CompClause{LTE: trigData.MaxX, GTE: nil, Format: ""}
 		XRange := map[string]pzsvc.CompClause{"data.minX": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
-	if trigData.MinX != "" {
+	{
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinX, Format: ""}
 		XRange := map[string]pzsvc.CompClause{"data.maxX": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
-	if trigData.MaxY != "" {
+	{
 		cClause := pzsvc.CompClause{LTE: trigData.MaxY, GTE: nil, Format: ""}
 		YRange := map[string]pzsvc.CompClause{"data.minY": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
-	if trigData.MinY != "" {
+	{
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinY, Format: ""}
 		YRange := map[string]pzsvc.CompClause{"data.maxY": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
@@ -95,13 +96,10 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: resFilter})
 	}
 
-	if trigData.MaxDate != "" || trigData.MinDate != "" {
-		dateClause := pzsvc.CompClause{LTE: nil, GTE: nil, Format: "yyyy-MM-dd'T'HH:mm:ssZZ"}
+	{
+		dateClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinDate, Format: "yyyy-MM-dd'T'HH:mm:ssZZ"}
 		if trigData.MaxDate != "" {
 			dateClause.LTE = trigData.MaxDate
-		}
-		if trigData.MinDate != "" {
-			dateClause.GTE = trigData.MinDate
 		}
 		dateFilter := map[string]pzsvc.CompClause{"data.acquiredDate": dateClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: dateFilter})
@@ -141,13 +139,25 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 		Data       newTrigData `json:"data"`
 	}
 
-	inpObj := trigUIStruct{}
+	inpObj := trigUIStruct{MinX: math.NaN(), MinY: math.NaN(), MaxX: math.NaN(), MaxY: math.NaN(), CloudCover: math.NaN()}
 	outpObj := outpType{}
 	idObj := newTrigOut{}
 
 	_, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
 		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error(), outpObj, http.StatusBadRequest)
+		return
+	}
+	if math.IsNaN(inpObj.MinX + inpObj.MinY + inpObj.MaxX + inpObj.MaxY) {
+		handleOut(w, "Error: Must specify full bounding box - minX, minY, maxX, and maxY.", nil, http.StatusBadRequest)
+		return
+	}
+	if inpObj.MinDate == "" {
+		handleOut(w, "Error: Must specify minDate.", nil, http.StatusBadRequest)
+		return
+	}
+	if math.IsNaN(inpObj.CloudCover) {
+		handleOut(w, "Error: Must specify cloudCover.", nil, http.StatusBadRequest)
 		return
 	}
 
@@ -198,6 +208,11 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	trigOutp.EventTypeIDs = append(trigInp.Condition.EventTypeIDs)
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
 	trigOutp.CreatedBy = trigInp.CreatedBy
+	trigOutp.CloudCover = math.NaN()
+	trigOutp.MinX = math.NaN()
+	trigOutp.MaxX = math.NaN()
+	trigOutp.MinY = math.NaN()
+	trigOutp.MaxY = math.NaN()
 
 	var bfInpObj gsInpStruct
 	content := trigInp.Job.JobType.Data.DataInputs["body"].Content
@@ -222,22 +237,37 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		}
 		for rKey, rVal = range query.Range {
 			switch rKey {
-			case "data.cloudCover":
-				trigOutp.CloudCover = toString(rVal.LTE)
-			case "data.minX":
-				trigOutp.MaxX = toString(rVal.LTE)
-			case "data.minY":
-				trigOutp.MaxY = toString(rVal.LTE)
-			case "data.maxX":
-				trigOutp.MinX = toString(rVal.GTE)
-			case "data.maxY":
-				trigOutp.MinY = toString(rVal.GTE)
-			case "data.resolution":
+			case "data~cloudCover":
+				trigOutp.CloudCover, err = toFloat(rVal.LTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad cloudCover` + err.Error())
+				}
+			case "data~minX":
+				trigOutp.MaxX, err = toFloat(rVal.LTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad minX` + err.Error())
+				}
+			case "data~minY":
+				trigOutp.MaxY, err = toFloat(rVal.LTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad minY` + err.Error())
+				}
+			case "data~maxX":
+				trigOutp.MinX, err = toFloat(rVal.GTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad maxX` + err.Error())
+				}
+			case "data~maxY":
+				trigOutp.MinY, err = toFloat(rVal.GTE)
+				if err != nil {
+					return nil, errors.New(`extractTrigReqStruct: bad maxY` + err.Error())
+				}
+			case "data~resolution":
 				trigOutp.MaxRes = toString(rVal.LTE)
 				trigOutp.MinRes = toString(rVal.GTE)
-			case "data.acquiredDate":
-				trigOutp.MaxDate = rVal.LTE.(string)
-				trigOutp.MinDate = rVal.GTE.(string)
+			case "data~acquiredDate":
+				trigOutp.MaxDate = toString(rVal.LTE)
+				trigOutp.MinDate = toString(rVal.GTE)
 			default:
 			}
 		}
@@ -255,6 +285,19 @@ func toString(input interface{}) string {
 		return inp
 	default:
 		return ""
+	}
+}
+
+func toFloat(input interface{}) (float64, error) {
+	switch inp := input.(type) {
+	case int:
+		return float64(inp), nil
+	case float64:
+		return inp, nil
+	case string:
+		return strconv.ParseFloat(inp, 64)
+	default:
+		return 0, errors.New("toFloat: not a valid type")
 	}
 }
 
@@ -331,6 +374,11 @@ AddTriggerLoop:
 		newTrig, err = extractTrigReqStruct(trig)
 		if err != nil {
 			fmt.Println(err.Error())
+			continue AddTriggerLoop
+		}
+		trigFltTest := newTrig.MinX + newTrig.MinY + newTrig.MaxX + newTrig.MaxY + newTrig.CloudCover
+		if newTrig.MinDate == "" || math.IsNaN(trigFltTest) {
+			fmt.Println(errors.New("Trigger not containing required parameter"))
 			continue AddTriggerLoop
 		}
 		outpObj.TrigList = append(outpObj.TrigList, *newTrig)
