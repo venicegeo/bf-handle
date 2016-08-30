@@ -236,34 +236,34 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 		}
 		for rKey, rVal = range query.Range {
 			switch rKey {
-			case "data.cloudCover":
+			case "data~cloudCover":
 				trigOutp.CloudCover = toString(rVal.LTE)
-			case "data.minX":
+			case "data~minX":
 				trigOutp.MaxX, err = toFloat(rVal.LTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad minX` + err.Error())
 				}
-			case "data.minY":
+			case "data~minY":
 				trigOutp.MaxY, err = toFloat(rVal.LTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad minY` + err.Error())
 				}
-			case "data.maxX":
+			case "data~maxX":
 				trigOutp.MinX, err = toFloat(rVal.GTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad maxX` + err.Error())
 				}
-			case "data.maxY":
+			case "data~maxY":
 				trigOutp.MinY, err = toFloat(rVal.GTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad maxY` + err.Error())
 				}
-			case "data.resolution":
+			case "data~resolution":
 				trigOutp.MaxRes = toString(rVal.LTE)
 				trigOutp.MinRes = toString(rVal.GTE)
-			case "data.acquiredDate":
-				trigOutp.MaxDate = rVal.LTE.(string)
-				trigOutp.MinDate = rVal.GTE.(string)
+			case "data~acquiredDate":
+				trigOutp.MaxDate = toString(rVal.LTE)
+				trigOutp.MinDate = toString(rVal.GTE)
 			default:
 			}
 		}
