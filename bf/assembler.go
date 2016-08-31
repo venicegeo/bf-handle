@@ -44,8 +44,10 @@ type asInpStruct struct {
 }
 
 type ebOutStruct struct {
-	FootprintsID string `json:"footprintsID"` // Piazza ID for GeoJSON of footprints
-	ShorelinesID string `json:"shorelinesID"` // Piazza ID for GeoJSON of shorelines
+	FootprintsDataID string           `json:"footprintsDataID"` // Piazza ID for GeoJSON of footprints
+	FootprintsDepl   *pzsvc.DeplStrct `json:"footprintsDepl"`   // Piazza ID for GeoJSON of footprints
+	ShoreDataID      string           `json:"shoreDataID"`      // Piazza ID for GeoJSON of shorelines
+	ShoreDepl        *pzsvc.DeplStrct `json:"shoreDepl"`        // Piazza ID for GeoJSON of shorelines
 }
 
 // AssembleShorelines creates a single dataset from some input or something
@@ -137,7 +139,11 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ingest the footprints, store the Piazza ID in outpObj
-	if result.FootprintsID, b, err = writeFootprints(footprints, inpObj); err != nil {
+	if result.FootprintsDataID, b, err = writeFootprints(footprints, inpObj); err == nil {
+		if result.FootprintsDepl, err = pzsvc.DeployToGeoServer(result.FootprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
+			log.Printf(pzsvc.TracedError("Failed to deploy footprint GeoJSON to GeoServer: " + err.Error()).Error())
+		}
+	} else {
 		log.Printf(pzsvc.TracedError("Failed to ingest footprint GeoJSON: " + err.Error()).Error())
 		log.Print(string(b))
 	}
@@ -177,13 +183,20 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ingest the shorelines, store the Piazza ID in outpObj
+	ingest := true
 	b, _ = geojson.Write(shorelines)
-	if result.ShorelinesID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
-		b, _ = json.Marshal(result)
+	if result.ShoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
+		if result.ShoreDepl, err = pzsvc.DeployToGeoServer(result.ShoreDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
+			ingest = false
+			log.Printf(pzsvc.TracedError("Failed to deploy shorelines GeoJSON to GeoServer: " + err.Error()).Error())
+		}
 	} else {
+		ingest = false
 		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
 	}
-
+	if ingest {
+		b, _ = json.Marshal(result)
+	}
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
 }
