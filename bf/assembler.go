@@ -150,7 +150,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
-			fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx, len(footprints.Features))
+			fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx+1, len(footprints.Features))
 			gsInpObj.MetaJSON = footprint
 			if gen, _, err = genShoreline(gsInpObj); err != nil {
 				log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
