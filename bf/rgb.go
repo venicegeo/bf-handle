@@ -72,10 +72,10 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		return
 	}
 
-	outpID, err := pzsvc.DeployToGeoServer(fileID, "", inpObj.PzAddr, inpObj.PzAuth)
+	outpObj, err := pzsvc.DeployToGeoServer(fileID, "", inpObj.PzAddr, inpObj.PzAuth)
 
-	fmt.Println("RGB geoserver ID: " + outpID)
+	fmt.Println("RGB geoserver ID: " + outpObj.Layer)
 
-	rgbChan <- outpID
+	rgbChan <- outpObj.Layer
 	return
 }

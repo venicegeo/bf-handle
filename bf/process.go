@@ -115,7 +115,7 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	if outpFeature, err = genShoreline(inpObj); err == nil {
+	if outpFeature, _, err = genShoreline(inpObj); err == nil {
 		outpObj.JobName = outpFeature.PropertyString("jobName")
 		outpObj.AlgoType = outpFeature.PropertyString("algoType")
 		outpObj.DbImgID = outpFeature.ID
@@ -138,14 +138,14 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 // genShoreline serves as main function for this file, and is the
 // primary workhorse function of bf-handle as a whole.  It
 // processes raster images into geojson.
-func genShoreline(inpObj gsInpStruct) (*geojson.Feature, error) {
+func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error) {
 	var (
-		result  = inpObj.MetaJSON
-		rgbChan chan string
-		err     error
-		dataIDs []string
-		shoreDataID,
-		shoreDeplID string
+		result      = inpObj.MetaJSON
+		rgbChan     chan string
+		err         error
+		dataIDs     []string
+		shoreDataID string
+		deplObj     *pzsvc.DeplStrct
 	)
 
 	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
@@ -159,26 +159,26 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, error) {
 
 	fmt.Println("bf-handle: running provision")
 	if dataIDs, err = provision(inpObj, nil); err != nil {
-		return result, err
+		return result, nil, err
 	}
 
 	fmt.Println("bf-handle: running Algo")
-	if shoreDataID, shoreDeplID, err = runAlgo(inpObj, dataIDs); err != nil {
-		return result, err
+	if shoreDataID, deplObj, err = runAlgo(inpObj, dataIDs); err != nil {
+		return result, nil, err
 	}
 	result.Properties["shoreDataID"] = shoreDataID
-	result.Properties["shoreDeplID"] = shoreDeplID
+	result.Properties["shoreDeplID"] = deplObj.DeplID
 
 	if rgbChan != nil {
 		fmt.Println("waiting for rgb")
-		rgbLoc := <-rgbChan
+		rgbLoc := <-rgbChan // returns the Geoserver Layer
 		if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
-			return result, errors.New(rgbLoc)
+			return result, deplObj, errors.New(rgbLoc)
 		}
 		result.Properties["rgbLoc"] = rgbLoc
 	}
 
-	return result, nil
+	return result, deplObj, nil
 }
 
 // provision uses the given image metadata to access the database where its image set is stored,
@@ -223,55 +223,56 @@ func provision(inpObj gsInpStruct, bands []string) ([]string, error) {
 // file.  Right now, it doesn't have any algorithms to handle other than
 // pzsvc-ossim, but as that changes the case statement is going to get
 // bigger and uglier.
-func runAlgo(inpObj gsInpStruct, dataIDs []string) (string, string, error) {
+func runAlgo(inpObj gsInpStruct, dataIDs []string) (string, *pzsvc.DeplStrct, error) {
 	var (
-		dataID, deplID string
-		attMap         map[string]string
-		err            error
-		hasFeatMeta    = false
+		dataID      string
+		attMap      map[string]string
+		deplObj     *pzsvc.DeplStrct
+		err         error
+		hasFeatMeta = false
 	)
 	switch inpObj.AlgoType {
 	case "pzsvc-ossim":
 		attMap, err = getMeta("", "", "", inpObj.MetaJSON)
 		if err != nil {
-			return "", "", fmt.Errorf(`getMeta: %s`, err.Error())
+			return "", nil, fmt.Errorf(`getMeta: %s`, err.Error())
 		}
 		dataID, err = runOssim(inpObj.AlgoURL, dataIDs[0], dataIDs[1], inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", "", fmt.Errorf(`runOssim: %s`, err.Error())
+			return "", nil, fmt.Errorf(`runOssim: %s`, err.Error())
 		}
 		//		hasFeatMeta = true  // Currently, Ossim does not have feature-level metadata after all.
 		// until/unless that's fixed, we need to treat them the same way we do
 		// everyone else.
 	default:
-		return "", "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
+		return "", nil, fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
 
 	attMap, err = getMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, inpObj.MetaJSON)
 	if err != nil {
-		return "", "", fmt.Errorf(`getMeta2: %s`, err.Error())
+		return "", nil, fmt.Errorf(`getMeta2: %s`, err.Error())
 	}
 
 	if hasFeatMeta {
 		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
+			return "", nil, fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
 		}
 	} else {
 		dataID, err = addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
+			return "", nil, fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
 		}
 	}
 
-	deplID, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth)
+	deplObj, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth)
 	if err != nil {
-		return "", "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
+		return "", nil, fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
 
-	fmt.Printf("Completed algorithm %v; %v : %v", inpObj.MetaJSON.ID, dataID, deplID)
+	fmt.Printf("Completed algorithm %v; %v : %v", inpObj.MetaJSON.ID, dataID, deplObj.DeplID)
 
-	return dataID, deplID, nil
+	return dataID, deplObj, nil
 }
 
 // runOssim does all of the things necessary to process the given images
