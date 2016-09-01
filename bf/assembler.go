@@ -137,7 +137,9 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 
 		// Ingest the footprints, store the Piazza ID in outpObj
 		if result.FootprintsDataID, b, err = writeFootprints(footprints, inpObj); err == nil {
-			if result.FootprintsDepl, err = pzsvc.DeployToGeoServer(result.FootprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
+			if result.FootprintsDepl, err = pzsvc.DeployToGeoServer(result.FootprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err == nil {
+				log.Printf("Stored footprints with ID: %v", result.FootprintsDataID)
+			} else {
 				log.Printf(pzsvc.TracedError("Failed to deploy footprint GeoJSON to GeoServer: " + err.Error()).Error())
 			}
 		} else {
