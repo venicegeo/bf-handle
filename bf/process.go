@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -163,7 +164,13 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		}
 		tideX := (result.Bbox[0] + result.Bbox[2]) / 2
 		tideY := (result.Bbox[1] + result.Bbox[3]) / 2
-		inTideObj := tideIn{Lat: tideX, Lon: tideY, Dtg: result.Properties["acquiredDate"].(string)}
+		dtgStrIn := result.Properties["acquiredDate"].(string)
+		dtgTime, err := time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn)
+		if err != nil {
+			return result, nil, pzsvc.AddRef(err)
+		}
+		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
+		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
 		outTideObj, err := getTide(inTideObj, inpObj.TideURL)
 		if err != nil {
 			return result, nil, pzsvc.AddRef(err)
