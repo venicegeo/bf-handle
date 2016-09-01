@@ -33,19 +33,22 @@ type asInpStruct struct {
 	AlgoURL  string `json:"svcURL"`   // URL for the shoreline algorithm
 	// BndMrgType string           `json:"bandMergeType,omitempty"` // API for the bandmerge/rgb algorithm (optional)
 	// BndMrgURL  string           `json:"bandMergeURL,omitempty"`  // URL for the bandmerge/rgb algorithm (optional)
-	Bands       []string                   `json:"bands"`                 // names of bands to feed into the shoreline algorithm
-	PzAuth      string                     `json:"pzAuthToken,omitempty"` // Auth string for this Pz instance
-	PzAddr      string                     `json:"pzAddr"`                // gateway URL for this Pz instance
-	DbAuth      string                     `json:"dbAuthToken,omitempty"` // Auth string for the initial image database
-	LGroupID    string                     `json:"lGroupId"`              // UUID string for the target geoserver layer group
-	JobName     string                     `json:"resultName"`            // Arbitrary user-defined string to aid in later reference
-	Collections *geojson.FeatureCollection `json:"collections"`           // Collection objects
-	Baseline    map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
+	Bands            []string                   `json:"bands"`                 // names of bands to feed into the shoreline algorithm
+	PzAuth           string                     `json:"pzAuthToken,omitempty"` // Auth string for this Pz instance
+	PzAddr           string                     `json:"pzAddr"`                // gateway URL for this Pz instance
+	DbAuth           string                     `json:"dbAuthToken,omitempty"` // Auth string for the initial image database
+	LGroupID         string                     `json:"lGroupId"`              // UUID string for the target geoserver layer group
+	JobName          string                     `json:"resultName"`            // Arbitrary user-defined string to aid in later reference
+	Collections      *geojson.FeatureCollection `json:"collections"`           // Collection objects
+	Baseline         map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
+	FootprintsDataID string                     `json:"footprintsDataID"`      // Piazza ID of GeoJSON containing footprints
 }
 
 type ebOutStruct struct {
-	FootprintsID string `json:"footprintsID"` // Piazza ID for GeoJSON of footprints
-	ShorelinesID string `json:"shorelinesID"` // Piazza ID for GeoJSON of shorelines
+	FootprintsDataID string           `json:"footprintsDataID"` // Piazza ID for GeoJSON of footprints
+	FootprintsDepl   *pzsvc.DeplStrct `json:"footprintsDepl"`   // Piazza ID for GeoJSON of footprints
+	ShoreDataID      string           `json:"shoreDataID"`      // Piazza ID for GeoJSON of shorelines
+	ShoreDepl        *pzsvc.DeplStrct `json:"shoreDepl"`        // Piazza ID for GeoJSON of shorelines
 }
 
 // AssembleShorelines creates a single dataset from some input or something
@@ -105,6 +108,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	// clients to this function expect a JSON response
 	// containing the error message
 	handleError := func(errmsg string, status int) {
+		log.Print(errmsg)
 		outpErr := pzsvc.Error{Message: errmsg}
 		b, err = json.Marshal(outpErr)
 		if err != nil {
@@ -121,27 +125,58 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	if inpObj.PzAuth == "" {
 		inpObj.PzAuth = os.Getenv("BFH_PZ_AUTH")
 	}
-
 	if inpObj.DbAuth == "" {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	if footprints, err = crawlFootprints(inpObj.Baseline); err != nil {
-		handleError(pzsvc.TracedError("Error: failed to crawl footprints: "+err.Error()).Error(), http.StatusInternalServerError)
-		return
+	if inpObj.FootprintsDataID == "" {
+		if footprints, err = crawlFootprints(inpObj.Baseline); err != nil {
+			handleError(pzsvc.TracedError("Error: failed to crawl footprints: "+err.Error()).Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Ingest the footprints, store the Piazza ID in outpObj
+		if result.FootprintsDataID, b, err = writeFootprints(footprints, inpObj); err == nil {
+			if result.FootprintsDepl, err = pzsvc.DeployToGeoServer(result.FootprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err == nil {
+				log.Printf("Stored footprints with ID: %v", result.FootprintsDataID)
+			} else {
+				log.Printf(pzsvc.TracedError("Failed to deploy footprint GeoJSON to GeoServer: " + err.Error()).Error())
+			}
+		} else {
+			log.Printf(pzsvc.TracedError("Failed to ingest footprint GeoJSON: " + err.Error()).Error())
+			log.Print(string(b))
+		}
+	} else {
+		if b, err = pzsvc.DownloadBytes(inpObj.FootprintsDataID, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			if footprints, err = geojson.FeatureCollectionFromBytes(b); err != nil {
+				tracedError := pzsvc.TracedError("Error: Failed to build FeatureCollection from contents of ID " + inpObj.FootprintsDataID + ": " + err.Error())
+				handleError(tracedError.Error(), http.StatusBadRequest)
+				return
+			}
+			// The footprints information is abbreviated and might not contain information
+			// on previous collection operations so re-retrieve from the catalog
+			var newFootprint *geojson.Feature
+			for inx, footprint := range footprints.Features {
+				if newFootprint, err = catalog.GetImageMetadata(footprint.ID); err == nil {
+					footprints.Features[inx] = newFootprint
+				} else {
+					log.Printf("Failed to retrieve image %v from catalog.", footprint.ID)
+				}
+			}
+			result.FootprintsDataID = inpObj.FootprintsDataID
+		} else {
+			tracedError := pzsvc.TracedError("Error: Failed to download footprints from ID " + inpObj.FootprintsDataID + ": " + err.Error())
+			handleError(tracedError.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	if len(footprints.Features) == 0 {
-		handleError(pzsvc.TracedError("No footprint features in input.").Error(), http.StatusInternalServerError)
+		handleError(pzsvc.TracedError("No footprint features in input.").Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Ingest the footprints, store the Piazza ID in outpObj
-	if result.FootprintsID, b, err = writeFootprints(footprints, inpObj); err != nil {
-		log.Printf(pzsvc.TracedError("Failed to ingest footprint GeoJSON: " + err.Error()).Error())
-		log.Print(string(b))
-	}
-
+	// Convert the asInpStruct to a gsInpStruct
 	b, _ = json.Marshal(inpObj)
 	json.Unmarshal(b, &gsInpObj)
 
@@ -177,13 +212,20 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ingest the shorelines, store the Piazza ID in outpObj
+	ingest := true
 	b, _ = geojson.Write(shorelines)
-	if result.ShorelinesID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
-		b, _ = json.Marshal(result)
+	if result.ShoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
+		if result.ShoreDepl, err = pzsvc.DeployToGeoServer(result.ShoreDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
+			ingest = false
+			log.Printf(pzsvc.TracedError("Failed to deploy shorelines GeoJSON to GeoServer: " + err.Error()).Error())
+		}
 	} else {
+		ingest = false
 		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
 	}
-
+	if ingest {
+		b, _ = json.Marshal(result)
+	}
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
 }
