@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 
@@ -42,6 +43,7 @@ type asInpStruct struct {
 	Collections      *geojson.FeatureCollection `json:"collections"`           // Collection objects
 	Baseline         map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
 	FootprintsDataID string                     `json:"footprintsDataID"`      // Piazza ID of GeoJSON containing footprints
+	SkipDetection    bool                       `json:"skipDetection"`         // true: skip detection; go straight to assembly
 }
 
 type ebOutStruct struct {
@@ -183,19 +185,29 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Input object: %#v", gsInpObj)
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
+	// Randomize the footprints, just because
+	dest := make([]*geojson.Feature, len(footprints.Features))
+	perm := rand.Perm(len(footprints.Features))
+	for inx, val := range perm {
+		dest[val] = footprints.Features[inx]
+	}
+	footprints.Features = dest
+
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
-			fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx+1, len(footprints.Features))
-			gsInpObj.MetaJSON = footprint
-			if gen, _, err = genShoreline(gsInpObj); err != nil {
-				log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
-				continue
+			if !inpObj.SkipDetection {
+				fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx+1, len(footprints.Features))
+				gsInpObj.MetaJSON = footprint
+				if gen, _, err = genShoreline(gsInpObj); err != nil {
+					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
+					continue
+				}
+				inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
+				shoreDataID = gen.PropertyString("shoreDataID")
+				shoreDeplID = gen.PropertyString("shoreDeplID")
+				fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
+				go addCache(footprint.ID, shoreDataID, shoreDeplID)
 			}
-			inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
-			shoreDataID = gen.PropertyString("shoreDataID")
-			shoreDeplID = gen.PropertyString("shoreDeplID")
-			fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
-			go addCache(footprint.ID, shoreDataID, shoreDeplID)
 		} else {
 			fmt.Printf("Found Data ID %v for feature %v\n", shoreDataID, footprint.ID)
 			footprint.Properties["shoreDataID"] = shoreDataID
@@ -223,8 +235,11 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		ingest = false
 		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
 	}
+	// If the ingest works, writes the output object
+	// If not, just write the detected shorelines JSON
 	if ingest {
 		b, _ = json.Marshal(result)
+		log.Printf("Completed batch process: \n%v", string(b))
 	}
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
