@@ -148,6 +148,8 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		dataIDs     []string
 		shoreDataID string
 		deplObj     *pzsvc.DeplStrct
+		dtgTime     time.Time
+		outTideObj  *tideOut
 	)
 
 	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
@@ -165,14 +167,12 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		tideX := (result.Bbox[0] + result.Bbox[2]) / 2
 		tideY := (result.Bbox[1] + result.Bbox[3]) / 2
 		dtgStrIn := result.Properties["acquiredDate"].(string)
-		dtgTime, err := time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn)
-		if err != nil {
+		if dtgTime, err = time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn); err != nil {
 			return result, nil, pzsvc.AddRef(err)
 		}
 		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
 		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
-		outTideObj, err := getTide(inTideObj, inpObj.TideURL)
-		if err != nil {
+		if outTideObj, err = getTide(inTideObj, inpObj.TideURL); err != nil {
 			return result, nil, pzsvc.AddRef(err)
 		}
 		result.Properties["24hrMinTide"] = outTideObj.MinTide
@@ -343,7 +343,7 @@ func getTide(inpObj tideIn, tideAddr string) (*tideOut, error) {
 	if err != nil {
 		return nil, pzsvc.AddRef(err)
 	}
-	byts, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
+	_, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
 	if err != nil {
 		return nil, pzsvc.AddRef(err)
 	}
