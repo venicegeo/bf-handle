@@ -17,11 +17,10 @@ package bf
 import (
 	"encoding/json"
 	"errors"
-	
-	"github.com/venicegeo/pzsvc-lib"
-	"github.com/venicegeo/geojson-go/geojson"
-)
 
+	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-lib"
+)
 
 // getMeta takes up to three sources for metadata - the S3 metadata off of a GetFileMeta
 // call, an existing map[string]string, and the useful parts of one fo the geojson
@@ -40,12 +39,15 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 			attMap[key] = val
 		}
 	}
-	
+
 	if feature != nil {
 		attMap["sourceID"] = feature.ID // covers source and ID in that source
 		attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
 		attMap["sensorName"] = feature.PropertyString("sensorName")
 		attMap["resolution"] = feature.PropertyString("resolution")
+		attMap["24hrMinTide"] = feature.PropertyString("24hrMinTide")
+		attMap["24hrMaxTide"] = feature.PropertyString("24hrMaxTide")
+		attMap["CurrentTide"] = feature.PropertyString("CurrentTide")
 	}
 
 	return attMap, nil
@@ -54,7 +56,7 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 // addGeoFeatureMeta adds metadata to every feature in a given geojson file.  It uses the
 // dataId both to download the geojson file in question from S3  It then iterates through
 // all fo the features in the file and adds the given properties to each, before uploading
-// the file that results and returning the dataId from that upload. 
+// the file that results and returning the dataId from that upload.
 func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (string, error) {
 	b, err := pzsvc.DownloadBytes(dataID, pzAddr, pzAuth)
 	var obj geojson.FeatureCollection
@@ -63,8 +65,8 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 		return "", errors.New("metadata.go:65: " + err.Error() + ".  input json: " + string(b))
 	}
 
-	for _, feat := range obj.Features{
-		for pkey, pval := range props{
+	for _, feat := range obj.Features {
+		for pkey, pval := range props {
 			feat.Properties[pkey] = pval
 		}
 	}
@@ -78,7 +80,7 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 	source := props["algoName"]
 	version := props["version"]
 
-	dataID, err = pzsvc.Ingest( fName, "geojson", pzAddr, source, version, pzAuth, b2, props)
+	dataID, err = pzsvc.Ingest(fName, "geojson", pzAddr, source, version, pzAuth, b2, props)
 
 	return dataID, err
 }

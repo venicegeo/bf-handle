@@ -72,7 +72,10 @@ func main() {
 				PzAddr    string
 				PzAuth    string
 			}
-			var inpObj PljStruct
+			var (
+				inpObj  PljStruct
+				outData = make([]string, 0)
+			)
 
 			if b, err := pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
 				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.ReadBodyJSON: `+err.Error()+`.",  "Input String":"`+string(b)+`"}`, http.StatusBadRequest)
@@ -84,7 +87,7 @@ func main() {
 				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
-			outData := []string(nil)
+
 			for _, alert := range alertList {
 				var outpObj struct {
 					Data pzsvc.JobStatusResp `json:"data,omitempty"`
@@ -97,9 +100,13 @@ func main() {
 					outData = append(outData, outpObj.Data.Result.DataID)
 				}
 			}
-			b, _ := json.Marshal(outData)
+			byts, err := json.Marshal(outData)
+			if err != nil {
+				pzsvc.HTTPOut(w, `{"Errors": "json.Marshal: `+err.Error()+`.",  "Input String":"`+string(byts)+`"}`, http.StatusBadRequest)
+				return
+			}
 
-			pzsvc.HTTPOut(w, string(b), http.StatusOK)
+			pzsvc.HTTPOut(w, string(byts), http.StatusOK)
 
 		default:
 			fmt.Fprintf(w, "Command undefined.  Try help?\n")

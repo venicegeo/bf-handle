@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -36,8 +37,9 @@ Various TODOs:
 type gsInpStruct struct {
 	AlgoType   string           `json:"algoType"`                // API for the shoreline algorithm
 	AlgoURL    string           `json:"svcURL"`                  // URL for the shoreline algorithm
-	BndMrgType string           `json:"bandMergeType,omitempty"` // API for the bandmerge/rgb algorithm (optional)
-	BndMrgURL  string           `json:"bandMergeURL,omitempty"`  // URL for the bandmerge/rgb algorithm (optional)
+	BndMrgType string           `json:"bandMergeType,omitempty"` // API for the bandmerge/rgb service (optional)
+	BndMrgURL  string           `json:"bandMergeURL,omitempty"`  // URL for the bandmerge/rgb service (optional)
+	TideURL    string           `json:"tideURL,omitempty"`       // URL for the tide service (optional)
 	MetaJSON   *geojson.Feature `json:"metaDataJSON,omitempty"`  // JSON block from Image Catalog
 	MetaURL    string           `json:"metaDataURL,omitempty"`   // URL to call to get JSON block
 	Bands      []string         `json:"bands"`                   // names of bands to feed into the shoreline algorithm
@@ -156,15 +158,36 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 	result.Properties["jobName"] = inpObj.JobName
 	result.Properties["algoType"] = inpObj.AlgoType
 	result.Properties["algoURL"] = inpObj.AlgoURL
+	if inpObj.TideURL != "" {
+		if len(result.Bbox) != 4 {
+			return nil, nil, errors.New("Bounding Box from metadata feature not actually a box.")
+		}
+		tideX := (result.Bbox[0] + result.Bbox[2]) / 2
+		tideY := (result.Bbox[1] + result.Bbox[3]) / 2
+		dtgStrIn := result.Properties["acquiredDate"].(string)
+		dtgTime, err := time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn)
+		if err != nil {
+			return result, nil, pzsvc.AddRef(err)
+		}
+		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
+		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
+		outTideObj, err := getTide(inTideObj, inpObj.TideURL)
+		if err != nil {
+			return result, nil, pzsvc.AddRef(err)
+		}
+		result.Properties["24hrMinTide"] = outTideObj.MinTide
+		result.Properties["24hrMaxTide"] = outTideObj.MaxTide
+		result.Properties["CurrentTide"] = outTideObj.CurrTide
+	}
 
 	fmt.Println("bf-handle: running provision")
 	if dataIDs, err = provision(inpObj, nil); err != nil {
-		return result, nil, err
+		return result, nil, pzsvc.AddRef(err)
 	}
 
 	fmt.Println("bf-handle: running Algo")
 	if shoreDataID, deplObj, err = runAlgo(inpObj, dataIDs); err != nil {
-		return result, nil, err
+		return result, nil, pzsvc.AddRef(err)
 	}
 	result.Properties["shoreDataID"] = shoreDataID
 	result.Properties["shoreDeplID"] = deplObj.DeplID
@@ -300,4 +323,29 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string)
 		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
 	}
 	return outStruct.OutFiles[geoJName], nil
+}
+
+type tideIn struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+	Dtg string  `json:"dtg"`
+}
+
+type tideOut struct {
+	MinTide  float64 `json:"minimumTide24Hours"`
+	MaxTide  float64 `json:"maximumTide24Hours"`
+	CurrTide float64 `json:"currentTide"`
+}
+
+func getTide(inpObj tideIn, tideAddr string) (*tideOut, error) {
+	var outpObj tideOut
+	byts, err := json.Marshal(inpObj)
+	if err != nil {
+		return nil, pzsvc.AddRef(err)
+	}
+	byts, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
+	if err != nil {
+		return nil, pzsvc.AddRef(err)
+	}
+	return &outpObj, nil
 }
