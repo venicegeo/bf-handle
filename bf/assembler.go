@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 
@@ -185,18 +184,10 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Input object: %#v", gsInpObj)
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
-	// Randomize the footprints, just because
-	dest := make([]*geojson.Feature, len(footprints.Features))
-	perm := rand.Perm(len(footprints.Features))
-	for inx, val := range perm {
-		dest[val] = footprints.Features[inx]
-	}
-	footprints.Features = dest
-
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
 			if !inpObj.SkipDetection {
-				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), footprint.PropertyFloat("score"))
+				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), imageScore(footprint))
 				gsInpObj.MetaJSON = footprint
 				if gen, _, err = genShoreline(gsInpObj); err != nil {
 					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
