@@ -44,6 +44,7 @@ type asInpStruct struct {
 	Baseline         map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
 	FootprintsDataID string                     `json:"footprintsDataID"`      // Piazza ID of GeoJSON containing footprints
 	SkipDetection    bool                       `json:"skipDetection"`         // true: skip detection; go straight to assembly
+	ForceDetection   bool                       `json:"forceDetection"`        // true: ignore cache
 }
 
 type ebOutStruct struct {
@@ -186,7 +187,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
 	for inx, footprint := range footprints.Features {
-		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
+		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
 			if !inpObj.SkipDetection {
 				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), imageScore(footprint))
 				gsInpObj.MetaJSON = footprint
