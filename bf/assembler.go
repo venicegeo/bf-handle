@@ -227,6 +227,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	} else {
 		ingest = false
 		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
+		log.Printf(string(b[0:10000]))
 	}
 	// If the ingest works, writes the output object
 	// If not, just write the detected shorelines JSON
