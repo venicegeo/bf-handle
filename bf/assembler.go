@@ -297,6 +297,9 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 	for _, collection := range inpObj.Collections.Features {
 		clippedGeoms = nil
 		foundGeoms = nil
+		b = nil
+		debug.FreeOSMemory()
+
 		shoreDataID = collection.PropertyString("shoreDataID")
 		if collGeom, err = geojsongeos.GeosFromGeoJSON(collection.Geometry); err != nil {
 			log.Printf("%T", collection.Geometry)
@@ -359,7 +362,6 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 		if gjIfc, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, foundGeoms...); err != nil {
 			log.Printf(pzsvc.TracedError("Failed to create new collection containing" + string(len(foundGeoms)) + " geometries\n" + err.Error()).Error())
 		}
-		debug.FreeOSMemory()
 	}
 	return result, nil
 }
@@ -375,13 +377,13 @@ func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geome
 		result *geojson.FeatureCollection
 	)
 	result = geojson.NewFeatureCollection(nil)
-	fmt.Printf("%v features to inspect", len(fc.Features))
+	fmt.Printf("%v features to inspect. ", len(fc.Features))
 	for _, feature := range fc.Features {
 		if currGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 			log.Printf(pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error()).Error())
 			continue
 		}
-		// Need a better test here
+		// Need a better test here?
 		if intersects, err = currGeom.Intersects(comparison); err != nil {
 			log.Printf(pzsvc.TracedError("Failed to test intersection: " + err.Error()).Error())
 			continue
