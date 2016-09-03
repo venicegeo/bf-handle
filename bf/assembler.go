@@ -347,6 +347,9 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 			continue
 		}
 
+		b = nil
+		debug.FreeOSMemory()
+
 		if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 			for _, clippedGeom = range clippedGeoms {
 				if currFc = findBestMatches(fc, clippedGeom, collGeom); len(currFc.Features) == 0 {
@@ -356,6 +359,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), shoreDataID)
 				}
 			}
+			debug.FreeOSMemory()
 		} else {
 			log.Printf(pzsvc.TracedError(fmt.Sprintf("Was expecting a *geojson.FeatureCollection, got a %T", gjIfc)).Error())
 		}
