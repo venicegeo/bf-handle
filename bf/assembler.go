@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -198,6 +199,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 				shoreDeplID = gen.PropertyString("shoreDeplID")
 				fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
 				go addCache(footprint.ID, shoreDataID, shoreDeplID)
+				debug.FreeOSMemory()
 			}
 		} else {
 			fmt.Printf("Found Data ID %v for feature %v\n", shoreDataID, footprint.ID)
@@ -357,6 +359,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 		if gjIfc, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, foundGeoms...); err != nil {
 			log.Printf(pzsvc.TracedError("Failed to create new collection containing" + string(len(foundGeoms)) + " geometries\n" + err.Error()).Error())
 		}
+		debug.FreeOSMemory()
 	}
 	return result, nil
 }
@@ -372,7 +375,7 @@ func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geome
 		result *geojson.FeatureCollection
 	)
 	result = geojson.NewFeatureCollection(nil)
-	log.Printf("%v features to inspect", len(fc.Features))
+	fmt.Printf("%v features to inspect", len(fc.Features))
 	for _, feature := range fc.Features {
 		if currGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 			log.Printf(pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error()).Error())
