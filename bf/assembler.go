@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -42,6 +43,8 @@ type asInpStruct struct {
 	Collections      *geojson.FeatureCollection `json:"collections"`           // Collection objects
 	Baseline         map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
 	FootprintsDataID string                     `json:"footprintsDataID"`      // Piazza ID of GeoJSON containing footprints
+	SkipDetection    bool                       `json:"skipDetection"`         // true: skip detection; go straight to assembly
+	ForceDetection   bool                       `json:"forceDetection"`        // true: ignore cache
 }
 
 type ebOutStruct struct {
@@ -184,18 +187,21 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
 	for inx, footprint := range footprints.Features {
-		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); shoreDataID == "" {
-			fmt.Printf("Collecting scene %v (#%v of %v)\n", footprint.ID, inx+1, len(footprints.Features))
-			gsInpObj.MetaJSON = footprint
-			if gen, _, err = genShoreline(gsInpObj); err != nil {
-				log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
-				continue
+		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
+			if !inpObj.SkipDetection {
+				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), imageScore(footprint))
+				gsInpObj.MetaJSON = footprint
+				if gen, _, err = genShoreline(gsInpObj); err != nil {
+					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
+					continue
+				}
+				inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
+				shoreDataID = gen.PropertyString("shoreDataID")
+				shoreDeplID = gen.PropertyString("shoreDeplID")
+				fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
+				go addCache(footprint.ID, shoreDataID, shoreDeplID)
+				debug.FreeOSMemory()
 			}
-			inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
-			shoreDataID = gen.PropertyString("shoreDataID")
-			shoreDeplID = gen.PropertyString("shoreDeplID")
-			fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
-			go addCache(footprint.ID, shoreDataID, shoreDeplID)
 		} else {
 			fmt.Printf("Found Data ID %v for feature %v\n", shoreDataID, footprint.ID)
 			footprint.Properties["shoreDataID"] = shoreDataID
@@ -222,9 +228,16 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	} else {
 		ingest = false
 		log.Printf(pzsvc.TracedError("Failed to ingest shorelines GeoJSON: " + err.Error()).Error())
+		for inx := 0; inx < 100 && inx < len(shorelines.Features); inx++ {
+			log.Printf("%#v", shorelines.Features[inx].Properties)
+		}
 	}
+
+	// If the ingest works, writes the output object
+	// If not, just write the detected shorelines JSON
 	if ingest {
 		b, _ = json.Marshal(result)
+		log.Printf("Completed batch process: \n%v", string(b))
 	}
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
@@ -289,6 +302,9 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 	for _, collection := range inpObj.Collections.Features {
 		clippedGeoms = nil
 		foundGeoms = nil
+		b = nil
+		debug.FreeOSMemory()
+
 		shoreDataID = collection.PropertyString("shoreDataID")
 		if collGeom, err = geojsongeos.GeosFromGeoJSON(collection.Geometry); err != nil {
 			log.Printf("%T", collection.Geometry)
@@ -336,6 +352,9 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 			continue
 		}
 
+		b = nil
+		debug.FreeOSMemory()
+
 		if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 			for _, clippedGeom = range clippedGeoms {
 				if currFc = findBestMatches(fc, clippedGeom, collGeom); len(currFc.Features) == 0 {
@@ -345,6 +364,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), shoreDataID)
 				}
 			}
+			debug.FreeOSMemory()
 		} else {
 			log.Printf(pzsvc.TracedError(fmt.Sprintf("Was expecting a *geojson.FeatureCollection, got a %T", gjIfc)).Error())
 		}
@@ -366,13 +386,13 @@ func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geome
 		result *geojson.FeatureCollection
 	)
 	result = geojson.NewFeatureCollection(nil)
-	log.Printf("%v features to inspect", len(fc.Features))
+	fmt.Printf("%v features to inspect. ", len(fc.Features))
 	for _, feature := range fc.Features {
 		if currGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 			log.Printf(pzsvc.TracedError("Could not convert GeoJSON object to GEOS geometry: " + err.Error()).Error())
 			continue
 		}
-		// Need a better test here
+		// Need a better test here?
 		if intersects, err = currGeom.Intersects(comparison); err != nil {
 			log.Printf(pzsvc.TracedError("Failed to test intersection: " + err.Error()).Error())
 			continue
