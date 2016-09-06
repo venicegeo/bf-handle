@@ -66,11 +66,11 @@ func main() {
 			// build list of jobIDs
 			// return appropriate object
 			type PljStruct struct {
-				TriggerID string
-				PerPage   string
-				PageNo    string
-				PzAddr    string
-				PzAuth    string
+				TriggerID   string
+				PerPage     string
+				PageNo      string
+				PzAddr      string
+				PzAuthToken string
 			}
 			var (
 				inpObj  PljStruct
@@ -82,7 +82,7 @@ func main() {
 				return
 			}
 
-			alertList, err := pzsvc.GetAlerts(inpObj.PerPage, inpObj.PageNo, inpObj.TriggerID, inpObj.PzAddr, inpObj.PzAuth)
+			alertList, err := pzsvc.GetAlerts(inpObj.PerPage, inpObj.PageNo, inpObj.TriggerID, inpObj.PzAddr, inpObj.PzAuthToken)
 			if err != nil {
 				pzsvc.HTTPOut(w, `{"Errors": "pzsvc.GetAlerts: `+err.Error()+`"}`, http.StatusBadRequest)
 				return
@@ -92,7 +92,7 @@ func main() {
 				var outpObj struct {
 					Data pzsvc.JobStatusResp `json:"data,omitempty"`
 				}
-				_, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuth, &outpObj)
+				_, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuthToken, &outpObj)
 				if err != nil {
 					continue
 				}

@@ -26,23 +26,23 @@ It's an important part of reusing job runs so that we don't have to
 reprocess them all the time.
 */
 
-type imageInpStruct struct {
-	ImageID string `json:"imageId"`
+type sceneInpStruct struct {
+	SceneID string `json:"sceneId"`
 	PzAddr  string `json:"pzAddr"`
-	PzAuth  string `json:"pzAuth"`
+	PzAuth  string `json:"pzAuthToken"`
 }
 
-type imageOutpStruct struct {
+type sceneOutpStruct struct {
 	DataIDs []string `json:"dataIds"`
 }
 
 // resultsByImageId takes an imageId (as per pzsvc-image-catalog) and the necessary information
 // for accessing Piazza, and returns a list of bf-handle results in the form of dataIds.
-func resultsByImageID(imageID, pzAddr, pzAuth string) ([]string, error) {
+func resultsBySceneID(sceneID, pzAddr, pzAuth string) ([]string, error) {
 
 	files := pzsvc.FileDataList{}
 	queryStr := `{"query":{"bool":{"must":[{"match":{"dataResource.dataType.content":"` +
-		imageID +
+		sceneID +
 		`"}},{"match":{"dataResource.dataType.type":"text"}}]}}}`
 
 	_, err := pzsvc.RequestKnownJSON("POST", queryStr, pzAddr+"/data/query", pzAuth, &files)
@@ -59,15 +59,15 @@ func resultsByImageID(imageID, pzAddr, pzAuth string) ([]string, error) {
 
 // ResultsByScene ...
 func ResultsByScene(w http.ResponseWriter, r *http.Request) {
-	var inpObj imageInpStruct
+	var inpObj sceneInpStruct
 	byts, err := pzsvc.ReadBodyJSON(&inpObj, r.Body)
 	if err != nil {
 		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".\nInput String: "+string(byts), nil, http.StatusBadRequest)
 		return
 	}
 
-	outDataIds, err := resultsByImageID(inpObj.ImageID, inpObj.PzAddr, inpObj.PzAuth)
-	outObj := imageOutpStruct{DataIDs: outDataIds}
+	outDataIds, err := resultsBySceneID(inpObj.SceneID, inpObj.PzAddr, inpObj.PzAuth)
+	outObj := sceneOutpStruct{DataIDs: outDataIds}
 	if err != nil {
 		handleOut(w, "resultsByImageID error: "+err.Error(), outObj, http.StatusInternalServerError)
 		return
