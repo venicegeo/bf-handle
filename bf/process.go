@@ -47,21 +47,21 @@ type gsInpStruct struct {
 	PzAddr     string           `json:"pzAddr"`                  // gateway URL for this Pz instance
 	DbAuth     string           `json:"dbAuthToken,omitempty"`   // Auth string for the initial image database
 	LGroupID   string           `json:"lGroupId"`                // UUID string for the target geoserver layer group
-	JobName    string           `json:"resultName"`              // Arbitrary user-defined string to aid in later reference
+	JobName    string           `json:"jobName"`                 // Arbitrary user-defined string to aid in later reference
 }
 
 type gsOutpStruct struct {
-	ShoreDataID string      `json:"shoreDataID"`
-	ShoreDeplID string      `json:"shoreDeplID"`
-	RGBloc      string      `json:"rgbLoc"`
-	Geometry    interface{} `json:"geometry"`
-	AlgoType    string      `json:"algorithmName"`
-	ImgCapDate  string      `json:"imageCaptureDate"`
-	DbImgID     string      `json:"dbImageId"`
-	JobName     string      `json:"resultName"`
-	SensorName  string      `json:"sensorName"`
-	AlgoURL     string      `json:"svcURL"`
-	Error       string      `json:"error"`
+	ShoreDataID  string      `json:"shoreDataID"`
+	ShoreDeplID  string      `json:"shoreDeplID"`
+	RGBloc       string      `json:"rgbLoc"`
+	Geometry     interface{} `json:"geometry"`
+	AlgoType     string      `json:"algoType"`
+	SceneCapDate string      `json:"sceneCaptureDate"`
+	SceneID      string      `json:"sceneId"`
+	JobName      string      `json:"resultName"`
+	SensorName   string      `json:"sensorName"`
+	AlgoURL      string      `json:"svcURL"`
+	Error        string      `json:"error"`
 }
 
 // Execute executes a single shoreline detection
@@ -120,8 +120,8 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 	if outpFeature, _, err = genShoreline(inpObj); err == nil {
 		outpObj.JobName = outpFeature.PropertyString("jobName")
 		outpObj.AlgoType = outpFeature.PropertyString("algoType")
-		outpObj.DbImgID = outpFeature.ID
-		outpObj.ImgCapDate = outpFeature.PropertyString("acquiredDate")
+		outpObj.SceneID = outpFeature.ID
+		outpObj.SceneCapDate = outpFeature.PropertyString("acquiredDate")
 		outpObj.Geometry = outpFeature.Geometry
 		outpObj.SensorName = outpFeature.PropertyString("sensorName")
 		outpObj.AlgoURL = outpFeature.PropertyString("algoURL")
@@ -173,7 +173,7 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
 		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
 
-		outTideObj, err := getTide(inTideObj, inpObj.TideURL)
+		outTideObj, err = getTide(inTideObj, inpObj.TideURL)
 		// currently, the tide prediction service can generate
 		// error-producing output even with valid requests (for
 		// example, if the scene is in the middle of the ocean).

@@ -24,7 +24,7 @@ pzAuthToken	string         // semi-optional.  Auth string for this Pz instance
 pzAddr		string		// gateway URL for this Pz instance
 dbAuthToken	string		// semi-optional.  Auth string for the image database
 lGroupId	string		// UUID string for the target geoserver layer group
-resultName	string		// Arbitrary user-defined name string for result
+jobName		string		// Arbitrary user-defined name string for resulting job
 
 
 A more detailed explanation for each follows:
@@ -45,22 +45,35 @@ A more detailed explanation for each follows:
 
 "dbAuthToken": Overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any)
 
-"1GroupId":
+"1GroupId": References Geoserver.  When provided, provisions the result geojson to geoserver and adds the resulting geoserver layer to the layer group with the given ID.  If the given ID does not currently exist as a layer group, will create a layer group with that ID and with the resulting geoserver layer as its first element
 
-"resultName":
+"jobName": An arbitrary string.  Will be added on to job response as the property "jobName".  Primarily meant as a tool for simplifying result searches and/or UI labeling.
 
-
-
+//------
 
 bf-handle responds with a json string including the following:
-- "shoreDataID": a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, with a few additional pieces of metadata, noting when the source images were collected, what sensor platform collected them, what database the images were sourced from, and what the image ID was in that database.
+- "shoreDataID": a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, plus a significant amount of metadata.
 
 - "shoreDeplID": a deployment ID for a layer in the geoserver instance associated with the targeted piazza instance, also containing the output data.
 
-- "rgbLoc": Piazza S3 bucket dataID for the results of the bandmerge algorithm (if requested)
+- "rgbLoc": Piazza S3 bucket dataID for the results of the bandmerge algorithm (if it was requested)
+
+- "geometry": Provides the boundaries of the detection in geojson format
+
+- "algoType": Value copied from the input parameter of the same name.
+
+- "sceneCaptureDate": The date/time that the images for the scene were taken.
+
+- "sceneId": The ID in pzsvc-image-catalog that references the scene used.
+
+- "jobName": Value copied from the input parameter of the same name.
+
+- "sensorName": The name of the source of the original scene.  Indicates things like which bands were available, the zoom level, and so forth.
+
+- "svcURL": Value copied from the input parameter of the same name.
 
 - "error": describes any errors that may have occurred during processing
 
 ### bf-handle/newProductLine
 
-creates a trigger into bf-handle/execute and associates it with a geoserver layer group.  Once this product line is created, it will run bf-handle/execute every time an appropriate event fires
+bf-handle/newProductLine creates a trigger into bf-handle/execute, using the given eventTypeId and event filter, and associates it with a new geoserver layer group.  Once this trigger is created, it will run bf-handle/execute every time an event fires on that event type that passes the filter, and then push the result into geoserver in the given layer group.
