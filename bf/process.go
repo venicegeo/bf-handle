@@ -172,12 +172,17 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
 		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
 		outTideObj, err := getTide(inTideObj, inpObj.TideURL)
-		if err != nil {
-			return result, nil, pzsvc.AddRef(err)
+
+		// currently, the tide prediction service can generate
+		// error-producing output even with valid requests (for
+		// example, if the scene is in the middle of the ocean).
+		// Thus, if we get an error from this, we simply continue
+		// without the tide data.
+		if err == nil {
+			result.Properties["24hrMinTide"] = outTideObj.MinTide
+			result.Properties["24hrMaxTide"] = outTideObj.MaxTide
+			result.Properties["CurrentTide"] = outTideObj.CurrTide
 		}
-		result.Properties["24hrMinTide"] = outTideObj.MinTide
-		result.Properties["24hrMaxTide"] = outTideObj.MaxTide
-		result.Properties["CurrentTide"] = outTideObj.CurrTide
 	}
 
 	fmt.Println("bf-handle: running provision")
