@@ -40,6 +40,7 @@ type asInpStruct struct {
 	DbAuth           string                     `json:"dbAuthToken,omitempty"` // Auth string for the initial image database
 	LGroupID         string                     `json:"lGroupId"`              // UUID string for the target geoserver layer group
 	JobName          string                     `json:"resultName"`            // Arbitrary user-defined string to aid in later reference
+	TidesAddr        string                     `json:"tidesAddr"`             // URL for Tide Prediction Service (optional)
 	Collections      *geojson.FeatureCollection `json:"collections"`           // Collection objects
 	Baseline         map[string]interface{}     `json:"baseline"`              // Baseline shoreline, as GeoJSON
 	FootprintsDataID string                     `json:"footprintsDataID"`      // Piazza ID of GeoJSON containing footprints
@@ -133,7 +134,12 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if inpObj.FootprintsDataID == "" {
-		if footprints, err = crawlFootprints(inpObj.Baseline); err != nil {
+		if inpObj.Baseline == nil {
+			handleError(pzsvc.TracedError("Input must contain a baseline FeatureCollection or a FootprintsDataID.").Error(), http.StatusBadRequest)
+			return
+		}
+
+		if footprints, err = crawlFootprints(inpObj.Baseline, &inpObj); err != nil {
 			handleError(pzsvc.TracedError("Error: failed to crawl footprints: "+err.Error()).Error(), http.StatusInternalServerError)
 			return
 		}
@@ -189,7 +195,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
 			if !inpObj.SkipDetection {
-				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), imageScore(footprint))
+				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), sceneScore(footprint))
 				gsInpObj.MetaJSON = footprint
 				if gen, _, err = genShoreline(gsInpObj); err != nil {
 					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())

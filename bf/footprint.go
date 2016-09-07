@@ -52,7 +52,7 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			break
 		}
-		if gjIfc, err = crawlFootprints(gjIfc); err == nil {
+		if gjIfc, err = crawlFootprints(gjIfc, nil); err == nil {
 			if bytes, err = geojson.Write(gjIfc); err != nil {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				break
@@ -70,7 +70,7 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
+func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.FeatureCollection, error) {
 	var (
 		err error
 		currentGeometry,
@@ -106,7 +106,7 @@ func crawlFootprints(gjIfc interface{}) (*geojson.FeatureCollection, error) {
 		} else if contains {
 			continue
 		}
-		if bestImage = getBestImage(point); bestImage == nil {
+		if bestImage = getBestScene(point, asInpObj); bestImage == nil {
 			log.Printf("Didn't get a candidate image for point %v.", point.String())
 		} else {
 			bestImages.Features = append(bestImages.Features, bestImage)
@@ -251,19 +251,21 @@ func (a ByScore) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 func (a ByScore) Less(i, j int) bool {
-	return imageScore(a[i]) < imageScore(a[j])
+	return sceneScore(a[i]) < sceneScore(a[j])
 }
 
-func getBestImage(point *geos.Geometry) *geojson.Feature {
+func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	var (
 		options catalog.SearchOptions
 		feature,
-		currentImage,
-		bestImage *geojson.Feature
+		currentScene,
+		bestScene *geojson.Feature
 		geometry interface{}
 		currentScore,
 		bestScore float64
 		err              error
+		tidesInObj       *tidesIn
+		tidesOutObj      *tidesOut
 		imageDescriptors catalog.ImageDescriptors
 	)
 	options.NoCache = true
@@ -276,30 +278,52 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 		return nil
 	}
 	if len(imageDescriptors.Images.Features) == 0 {
-		log.Printf("Found no images in catalog search.")
+		log.Printf("Found no images in catalog search. %v %#v", feature.String(), options)
 	}
-	for _, currentImage = range imageDescriptors.Images.Features {
-		currentScore = imageScore(currentImage)
+
+	// Incorporate Tide Prediction
+	if inpObj != nil && inpObj.TidesAddr != "" {
+		if tidesInObj = toTidesIn(imageDescriptors.Images.Features); tidesInObj != nil {
+			if tidesOutObj, err = getTides(*tidesInObj, inpObj.TidesAddr); err == nil {
+				// Loop 1: Add the tide information to each image
+				for _, tideObj := range tidesOutObj.Locations {
+					currentScene = tidesInObj.Map[tideObj.Dtg]
+					currentScene.Properties["CurrentTide"] = tideObj.Results.CurrTide
+					currentScene.Properties["24hrMinTide"] = tideObj.Results.MinTide
+					currentScene.Properties["24hrMaxTide"] = tideObj.Results.MaxTide
+					go updateSceneTide(currentScene, tideObj.Results)
+				}
+			} else {
+				log.Printf("Failed to get tide prediction information: %v", err.Error())
+			}
+		}
+	}
+
+	// Loop 2: Check their scores
+	for _, currentScene = range imageDescriptors.Images.Features {
+		currentScore = sceneScore(currentScene)
 		if currentScore > bestScore {
-			bestImage = currentImage
-			bestImage.Properties["score"] = currentScore
+			bestScene = currentScene
+			bestScene.Properties["score"] = currentScore
 			bestScore = currentScore
 		}
 	}
-	return bestImage
+	return bestScene
 }
 
 var date2015 = time.Date(2015, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
-func imageScore(image *geojson.Feature) float64 {
+func sceneScore(scene *geojson.Feature) float64 {
 	var (
-		result       float64
+		result       = 1.0
 		acquiredDate time.Time
 		err          error
-		baseline     = 1.0
 	)
-	cloudCover := image.PropertyFloat("cloudCover")
-	acquiredDateString := image.PropertyString("acquiredDate")
+	cloudCover := scene.PropertyFloat("cloudCover")
+	currTide := scene.PropertyFloat("CurrentTide")
+	minTide := scene.PropertyFloat("24hrMinTide")
+	maxTide := scene.PropertyFloat("24hrMaxTide")
+	acquiredDateString := scene.PropertyString("acquiredDate")
 	if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateString); err != nil {
 		log.Printf("Received invalid date of %v: ", acquiredDateString)
 		return 0.0
@@ -308,10 +332,18 @@ func imageScore(image *geojson.Feature) float64 {
 	// unless they happen to have very good cloud cover so discourage them
 	acquiredDateUnix := acquiredDate.Unix()
 	if acquiredDateUnix < date2015 {
-		baseline = 0.5
+		result = 0.5
 	}
 	now := time.Now().Unix()
-
-	result = baseline - (math.Sqrt(cloudCover/100.0) + (float64(now-acquiredDateUnix) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)))
+	result -= math.Sqrt(cloudCover / 100.0)
+	result -= float64(acquiredDateUnix-now) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)
+	if math.IsNaN(currTide) {
+		// If no tide is available for some reason, assume low tide
+		log.Printf("No tide available for %v", scene.ID)
+		result -= math.Sqrt(0.1)
+	} else {
+		result -= math.Sqrt(0.1) * (maxTide - currTide) / (maxTide - minTide)
+	}
+	// log.Printf("cc: %v, ad: %v, ct: %v, mt: %v, mit: %v, result: %v", cloudCover, acquiredDate, currTide, maxTide, minTide, result)
 	return result
 }
