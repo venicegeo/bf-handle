@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -148,7 +147,7 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		dataIDs     []string
 		shoreDataID string
 		deplObj     *pzsvc.DeplStrct
-		dtgTime     time.Time
+		inTideObj   *tideIn
 		outTideObj  *tideOut
 	)
 
@@ -161,28 +160,23 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 	result.Properties["algoType"] = inpObj.AlgoType
 	result.Properties["algoURL"] = inpObj.AlgoURL
 	if inpObj.TideURL != "" {
-		if len(result.Bbox) != 4 {
-			return nil, nil, errors.New("Bounding Box from metadata feature not actually a box.")
+		if inTideObj = toTideIn(result); inTideObj == nil {
+			return nil, nil, pzsvc.AddRef(
+				fmt.Errorf(`Could not get tide information from feature %v because 
+					required elements did not exist.`, result.ID))
 		}
-		tideX := (result.Bbox[0] + result.Bbox[2]) / 2
-		tideY := (result.Bbox[1] + result.Bbox[3]) / 2
-		dtgStrIn := result.Properties["acquiredDate"].(string)
-		if dtgTime, err = time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn); err != nil {
-			return result, nil, pzsvc.AddRef(err)
-		}
-		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
-		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
 
-		outTideObj, err = getTide(inTideObj, inpObj.TideURL)
 		// currently, the tide prediction service can generate
 		// error-producing output even with valid requests (for
 		// example, if the scene is in the middle of the ocean).
 		// Thus, if we get an error from this, we simply continue
 		// without the tide data.
-		if err == nil {
+		if outTideObj, err = getTide(*inTideObj, inpObj.TideURL); err == nil {
 			result.Properties["24hrMinTide"] = outTideObj.MinTide
 			result.Properties["24hrMaxTide"] = outTideObj.MaxTide
 			result.Properties["CurrentTide"] = outTideObj.CurrTide
+		} else {
+			fmt.Printf("Skipping tide information for %v: %v", result.ID, err.Error())
 		}
 	}
 
@@ -329,29 +323,4 @@ func runOssim(algoURL, imgID1, imgID2, authKey string, attMap map[string]string)
 		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
 	}
 	return outStruct.OutFiles[geoJName], nil
-}
-
-type tideIn struct {
-	Lat float64 `json:"lat"`
-	Lon float64 `json:"lon"`
-	Dtg string  `json:"dtg"`
-}
-
-type tideOut struct {
-	MinTide  float64 `json:"minimumTide24Hours"`
-	MaxTide  float64 `json:"maximumTide24Hours"`
-	CurrTide float64 `json:"currentTide"`
-}
-
-func getTide(inpObj tideIn, tideAddr string) (*tideOut, error) {
-	var outpObj tideOut
-	byts, err := json.Marshal(inpObj)
-	if err != nil {
-		return nil, pzsvc.AddRef(err)
-	}
-	_, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
-	if err != nil {
-		return nil, pzsvc.AddRef(err)
-	}
-	return &outpObj, nil
 }
