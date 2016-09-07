@@ -42,7 +42,7 @@ func PrepareFootprints(writer http.ResponseWriter, request *http.Request) {
 	)
 
 	switch request.Method {
-	case pzsvc.MethodPost:
+	case "POST":
 		defer request.Body.Close()
 		if bytes, err = ioutil.ReadAll(request.Body); err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)

@@ -47,7 +47,7 @@ func resultsBySceneID(sceneID, pzAddr, pzAuth string) ([]string, error) {
 
 	_, err := pzsvc.RequestKnownJSON("POST", queryStr, pzAddr+"/data/query", pzAuth, &files)
 	if err != nil {
-		return nil, pzsvc.AddRef(err)
+		return nil, pzsvc.TraceErr(err)
 	}
 
 	outDataIds := make([]string, len(files.Data))

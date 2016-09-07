@@ -87,8 +87,8 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if b, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
-		tracedError := pzsvc.TracedError("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(b))
-		handleError(tracedError.Error(), http.StatusBadRequest)
+		errStr := pzsvc.TraceStr("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(b))
+		handleError(errStr, http.StatusBadRequest)
 		return
 	}
 
@@ -168,7 +168,7 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 		tideY := (result.Bbox[1] + result.Bbox[3]) / 2
 		dtgStrIn := result.Properties["acquiredDate"].(string)
 		if dtgTime, err = time.Parse("2006-01-02T15:04:05.000000-07:00", dtgStrIn); err != nil {
-			return result, nil, pzsvc.AddRef(err)
+			return result, nil, pzsvc.TraceErr(err)
 		}
 		dtgStrOut := dtgTime.Format("2006-01-02-15-04")
 		inTideObj := tideIn{Lat: tideY, Lon: tideX, Dtg: dtgStrOut}
@@ -188,12 +188,12 @@ func genShoreline(inpObj gsInpStruct) (*geojson.Feature, *pzsvc.DeplStrct, error
 
 	fmt.Println("bf-handle: running provision")
 	if dataIDs, err = provision(inpObj, nil); err != nil {
-		return result, nil, pzsvc.AddRef(err)
+		return result, nil, pzsvc.TraceErr(err)
 	}
 
 	fmt.Println("bf-handle: running Algo")
 	if shoreDataID, deplObj, err = runAlgo(inpObj, dataIDs); err != nil {
-		return result, nil, pzsvc.AddRef(err)
+		return result, nil, pzsvc.TraceErr(err)
 	}
 	result.Properties["shoreDataID"] = shoreDataID
 	result.Properties["shoreDeplID"] = deplObj.DeplID
@@ -347,11 +347,11 @@ func getTide(inpObj tideIn, tideAddr string) (*tideOut, error) {
 	var outpObj tideOut
 	byts, err := json.Marshal(inpObj)
 	if err != nil {
-		return nil, pzsvc.AddRef(err)
+		return nil, pzsvc.TraceErr(err)
 	}
 	_, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
 	if err != nil {
-		return nil, pzsvc.AddRef(err)
+		return nil, pzsvc.TraceErr(err)
 	}
 	return &outpObj, nil
 }
