@@ -10,6 +10,9 @@ bf-handle does not currently have an autoregistration feature.  To register the 
 
 ## Service Call Format By Endpoint
 
+Usage notes:
+All bf-handle inputs and outputs are json objects.  The following should be interpreted accordingly.  Any case where pzAuthToken is referenced, the string required is the exact string that goes into the "Authorization" header for calls to the local piazza gateway.  In any case where pzAddr is required, it should begin at "https://" and it should not have a trailing slash.
+
 ### bf-handle/execute
 
 The primary purpose of bf-handle execute is managing image analysis services on behalf of the beachfront UI.  It accepts an input json object, reaches out to the specified services and data sources, and produces a result in the form of a geojson file uploaded to the local Piazza instance and a json response.  The format of the input is as follows:
@@ -18,7 +21,7 @@ algoType	string		// API for the shoreline algorithm
 svcURL		string		// URL for the shoreline algorithm
 tideURL		string		// optional.  URL for the tide service (optional)
 metaDataJSON	Feature		// semi-optional.  Entry from Image Catalog
-metaDataURL	string		// semi-optional.  URL URL for the Image Catalog
+metaDataURL	string		// semi-optional.  URL for the Image Catalog
 bands		string array	// names of bands to feed into the shoreline algorithm
 pzAuthToken	string         // semi-optional.  Auth string for this Pz instance
 pzAddr		string		// gateway URL for this Pz instance
@@ -39,15 +42,15 @@ A more detailed explanation for each follows:
 
 "bands": a comma-separated list (no spaces) of band names for the frequency ranges you want to include.  Reference only as many bands as you wish fed into the algorithm.  Band names can be drawn from the list of available bands listed in the "metaDataJSON" field.  For the moment, the preferred bands to feed into pzsvc-ossime are "coastal" and "swir1".
 
-"pzAuthToken": Overrides the authorization token for Piazza access.  If not provided, will default to the contents of BFH_PZ_AUTH (if any)
+"pzAuthToken": overrides the authorization token for Piazza access.  If not provided, will default to the contents of BFH_PZ_AUTH (if any).
 
-"pzAddr": the address of the local piazza instance.  Necessary for things like ingesting image files and updating response metadata 
+"pzAddr": the address of the local piazza instance.  Necessary for things like ingesting image files and updating response metadata.
 
-"dbAuthToken": Overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any)
+"dbAuthToken": overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any).
 
-"1GroupId": References Geoserver.  When provided, provisions the result geojson to geoserver and adds the resulting geoserver layer to the layer group with the given ID.  If the given ID does not currently exist as a layer group, will create a layer group with that ID and with the resulting geoserver layer as its first element
+"1GroupId": references Geoserver.  When provided, provisions the result geojson to geoserver and adds the resulting geoserver layer to the layer group with the given ID.  If the given ID does not currently exist as a layer group, will create a layer group with that ID and with the resulting geoserver layer as its first element.
 
-"jobName": An arbitrary string.  Will be added on to job response as the property "jobName".  Primarily meant as a tool for simplifying result searches and/or UI labeling.
+"jobName": an arbitrary string.  Will be added on to job response as the property "jobName".  Primarily meant as a tool for simplifying result searches and/or UI labeling.
 
 //------
 
@@ -56,24 +59,66 @@ bf-handle responds with a json string including the following:
 
 - "shoreDeplID": a deployment ID for a layer in the geoserver instance associated with the targeted piazza instance, also containing the output data.
 
-- "rgbLoc": Piazza S3 bucket dataID for the results of the bandmerge algorithm (if it was requested)
+- "geometry": provides the boundaries of the detection in geojson format.
 
-- "geometry": Provides the boundaries of the detection in geojson format
+- "algoType": value copied from the input parameter of the same name.
 
-- "algoType": Value copied from the input parameter of the same name.
+- "sceneCaptureDate": the date/time that the images for the scene were taken.
 
-- "sceneCaptureDate": The date/time that the images for the scene were taken.
+- "sceneId": the ID in pzsvc-image-catalog that references the scene used.
 
-- "sceneId": The ID in pzsvc-image-catalog that references the scene used.
+- "jobName": value copied from the input parameter of the same name.
 
-- "jobName": Value copied from the input parameter of the same name.
+- "sensorName": the name of the source for the original scene.  Indicates things like which bands were available, the zoom level, and so forth.
 
-- "sensorName": The name of the source of the original scene.  Indicates things like which bands were available, the zoom level, and so forth.
+- "svcURL": value copied from the input parameter of the same name.
 
-- "svcURL": Value copied from the input parameter of the same name.
+- "error": describes any errors that may have occurred during processing.
 
-- "error": describes any errors that may have occurred during processing
+### bf-handle/executeBatch
+
+...
+
+### bf-handle/prepareFootprints
+
+...
+
+### bf-handle/assembleShorelines
+
+...
 
 ### bf-handle/newProductLine
 
-bf-handle/newProductLine creates a trigger into bf-handle/execute, using the given eventTypeId and event filter, and associates it with a new geoserver layer group.  Once this trigger is created, it will run bf-handle/execute every time an event fires on that event type that passes the filter, and then push the result into geoserver in the given layer group.
+bf-handle/newProductLine creates a Beachfront Product Line.  A product line consists of a Pz trigger, calling bf-handle/execute, using a given eventTypeId and event filter, and associated with a new geoserver layer group.  Once this trigger is created, it will run bf-handle/execute every time an event fires on that event type that passes the filter, and then push the result into geoserver in the given layer group.
+
+### bf-handle/getProductLines
+
+
+
+### bf-handle/resultsByScene
+
+The API for this endpoint is temporary.  It is likely to be modified within the next month to improve information output.  Currently, it takes a pzsvc-image-catalog sceneId, and returns a list of all jobs that have been run against that scene in the form of Pz DataIds.
+
+Input format:
+sceneID		string	// the ID in pzsvc-image-catalog that references the scene used
+pzAddr		string	// the gateway URL for this Pz instance
+pzAuthToken	string	// the auth string for this Pz instance
+
+
+Output format:
+dataIds		string list	// Pz dataIds.  These are the dataIds resulting from successful job calls.  The files they point to are the bf-handle /execute output strings.
+
+
+### bf-handle/resultsByProductLine
+
+This API is temporary.  In the long term, we expect to modify it heavily, improving both searchability and information output.  It is possible that this endpoint will be closed, and replaced with one or more new endpoints.  Currently, it allows you to specify a given product line (trigger), and returns the jobs that have been triggered by that Product Line, in the form of a paginated list of dataIds.
+
+Input format:
+TriggerID	string	// the ID for the trigger/Product Line.
+PerPage		string	// the number of jobIds to list per "page"
+PageNo		string	// the number of pages of that size to skip before beginning to list 
+PzAddr		string	// the gateway URL for this Pz instance
+PzAuthToken	string	// the auth string for this Pz instance
+
+Output format:
+unlike the rest of the entries on this page, resultsByProductLine just returns a json-marshaled list of strings, rather than and object.  Those strings are the same sorts of dataIds returned by the resultsByScene call.
