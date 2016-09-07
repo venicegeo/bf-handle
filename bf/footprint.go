@@ -86,7 +86,7 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 
 	bestImages = geojson.NewFeatureCollection(nil)
 	if captured, err = geos.EmptyPolygon(); err != nil {
-		return nil, pzsvc.TracedError(err.Error())
+		return nil, pzsvc.TraceErr(err)
 	}
 	if footprintRegion, err = getFootprintRegion(gjIfc, 0.25); err != nil {
 		return nil, err
@@ -95,14 +95,14 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 		return nil, err
 	}
 	if pointCount, err = points.NGeometry(); err != nil {
-		return nil, pzsvc.TracedError(err.Error())
+		return nil, pzsvc.TraceErr(err)
 	}
 	for inx := 0; inx < pointCount; inx++ {
 		if point, err = points.Geometry(inx); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		}
 		if contains, err = captured.Contains(point); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		} else if contains {
 			continue
 		}
@@ -111,10 +111,10 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 		} else {
 			bestImages.Features = append(bestImages.Features, bestImage)
 			if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
+				return nil, pzsvc.TraceErr(err)
 			}
 			if captured, err = captured.Union(currentGeometry); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
+				return nil, pzsvc.TraceErr(err)
 			}
 		}
 	}
@@ -137,27 +137,27 @@ func getFootprintRegion(input interface{}, buffer float64) (*geos.Geometry, erro
 	case *geojson.FeatureCollection:
 		for _, feature := range it.Features {
 			if geom, err = getFootprintRegion(feature, buffer); err != nil {
-				return nil, pzsvc.TracedError(err.Error())
+				return nil, pzsvc.TraceErr(err)
 			}
 			geometries = append(geometries, geom)
 		}
 		if collection, err = geos.NewCollection(geos.GEOMETRYCOLLECTION, geometries...); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		}
 		if result, err = collection.Buffer(0); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		}
 	case map[string]interface{}:
 		return getFootprintRegion(geojson.FromMap(it), buffer)
 	case *geojson.Feature, *geojson.Point, *geojson.LineString, *geojson.Polygon, *geojson.MultiPoint, *geojson.MultiLineString, *geojson.MultiPolygon, *geojson.GeometryCollection:
 		if geom, err = geojsongeos.GeosFromGeoJSON(it); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		}
 		if result, err = geom.Buffer(buffer); err != nil {
-			return nil, pzsvc.TracedError(err.Error())
+			return nil, pzsvc.TraceErr(err)
 		}
 	default:
-		return nil, pzsvc.TracedError(fmt.Sprintf("Cannot create point cloud from %T.", input))
+		return nil, pzsvc.ErrWithTrace(fmt.Sprintf("Cannot create point cloud from %T.", input))
 	}
 	return result, nil
 }
