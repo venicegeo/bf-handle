@@ -153,8 +153,60 @@ func getFootprintRegion(input interface{}, buffer float64) (*geos.Geometry, erro
 		if geom, err = geojsongeos.GeosFromGeoJSON(it); err != nil {
 			return nil, pzsvc.TraceErr(err)
 		}
-		if result, err = geom.Buffer(buffer); err != nil {
+		return getFootprintRegion(geom, buffer)
+	case *geos.Geometry:
+		var (
+			area float64
+			gt   geos.GeometryType
+		)
+		if geom, err = it.Buffer(buffer); err != nil {
 			return nil, pzsvc.TraceErr(err)
+		}
+		// If we have too small a polygon, just buffer its envelope
+		// so we don't waste time with a zillion points
+		if gt, err = geom.Type(); err != nil {
+			return nil, pzsvc.TraceErr(err)
+		}
+		switch gt {
+		case geos.POLYGON:
+			if area, err = geom.Area(); err != nil {
+				return nil, pzsvc.TraceErr(err)
+			}
+			if area < buffer*2.0 {
+				// log.Print("Found a small geometry. Converting to Bounding Box.")
+				if result, err = geom.Envelope(); err != nil {
+					return nil, pzsvc.TraceErr(err)
+				}
+			} else {
+				result = geom
+				// log.Print("Found a large geometry. Simplifying.")
+				// if result, err = geom.Simplify(0.1); err != nil {
+				// 	return nil, pzsvc.TraceErr(err)
+				// }
+			}
+		case geos.MULTIPOLYGON:
+			var (
+				count int
+				geoms []*geos.Geometry
+				curr  *geos.Geometry
+			)
+			if count, err = geom.NGeometry(); err != nil {
+				return nil, pzsvc.TraceErr(err)
+			}
+			for inx := 0; inx < count; inx++ {
+				if curr, err = geom.Geometry(inx); err != nil {
+					return nil, pzsvc.TraceErr(err)
+				}
+				if curr, err = getFootprintRegion(curr, 0); err != nil {
+					return nil, pzsvc.TraceErr(err)
+				}
+				geoms = append(geoms, curr)
+			}
+			if result, err = geos.NewCollection(geos.MULTIPOLYGON, geoms...); err != nil {
+				return nil, pzsvc.TraceErr(err)
+			}
+		default:
+			return nil, pzsvc.TraceErr(fmt.Errorf("Unexpected geometry type: %v", gt))
 		}
 	default:
 		return nil, pzsvc.ErrWithTrace(fmt.Sprintf("Cannot create point cloud from %T.", input))
@@ -291,10 +343,10 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 					currentScene.Properties["CurrentTide"] = tideObj.Results.CurrTide
 					currentScene.Properties["24hrMinTide"] = tideObj.Results.MinTide
 					currentScene.Properties["24hrMaxTide"] = tideObj.Results.MaxTide
-					go updateSceneTide(currentScene, tideObj.Results)
+					updateSceneTide(currentScene, tideObj.Results)
 				}
-			} else {
-				log.Printf("Failed to get tide prediction information: %v", err.Error())
+				// } else {
+				// 	log.Printf("Failed to get tide prediction information: %v", err.Error())
 			}
 		}
 	}
@@ -339,11 +391,10 @@ func sceneScore(scene *geojson.Feature) float64 {
 	result -= float64(acquiredDateUnix-now) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)
 	if math.IsNaN(currTide) {
 		// If no tide is available for some reason, assume low tide
-		log.Printf("No tide available for %v", scene.ID)
+		// log.Printf("No tide available for %v", scene.ID)
 		result -= math.Sqrt(0.1)
 	} else {
 		result -= math.Sqrt(0.1) * (maxTide - currTide) / (maxTide - minTide)
 	}
-	// log.Printf("cc: %v, ad: %v, ct: %v, mt: %v, mit: %v, result: %v", cloudCover, acquiredDate, currTide, maxTide, minTide, result)
 	return result
 }

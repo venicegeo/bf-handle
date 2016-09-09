@@ -112,8 +112,7 @@ func getTides(inpObj tidesIn, tideAddr string) (*tidesOut, error) {
 	if err != nil {
 		return nil, pzsvc.TraceErr(err)
 	}
-	_, err = pzsvc.RequestKnownJSON("POST", string(bytes), tideAddr, "", &outpObj)
-	if err != nil {
+	if _, err = pzsvc.RequestKnownJSON("POST", string(bytes), tideAddr, "", &outpObj); err != nil {
 		return nil, pzsvc.TraceErr(err)
 	}
 	return &outpObj, nil
