@@ -17,16 +17,17 @@ package bf
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
 // getMeta takes up to three sources for metadata - the S3 metadata off of a GetFileMeta
-// call, an existing map[string]string, and the useful parts of one fo the geojson
+// call, the output from a call to the tide service, and one of the geojson
 // features from the harvester.  It builds a map[string]string out of whichever of these
 // is available and returns the result.
-func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[string]string, error) {
+func getMeta(dataID, pzAddr, pzAuth string, inpTide *tideOut, feature *CatFeature) (map[string]string, error) {
 	attMap := make(map[string]string)
 
 	if dataID != "" {
@@ -40,14 +41,22 @@ func getMeta(dataID, pzAddr, pzAuth string, feature *geojson.Feature) (map[strin
 		}
 	}
 
+	if inpTide != nil {
+		attMap["24hrMinTide"] = strconv.FormatFloat(inpTide.MinTide, 'f', -1, 64)
+		attMap["24hrMaxTide"] = strconv.FormatFloat(inpTide.MaxTide, 'f', -1, 64)
+		attMap["currentTide"] = strconv.FormatFloat(inpTide.CurrTide, 'f', -1, 64)
+	}
+
 	if feature != nil {
 		attMap["sourceID"] = feature.ID // covers source and ID in that source
-		attMap["dateTimeCollect"] = feature.PropertyString("acquiredDate")
-		attMap["sensorName"] = feature.PropertyString("sensorName")
-		attMap["resolution"] = feature.PropertyString("resolution")
-		attMap["24hrMinTide"] = feature.PropertyString("24hrMinTide")
-		attMap["24hrMaxTide"] = feature.PropertyString("24hrMaxTide")
-		attMap["CurrentTide"] = feature.PropertyString("CurrentTide")
+		attMap["dateTimeCollect"] = feature.Properties.AcqDate
+		attMap["sensorName"] = feature.Properties.SensorName
+		attMap["resolution"] = strconv.Itoa(feature.Properties.Resolution)
+		attMap["classification"] = feature.Properties.Classification
+		if feature.Properties.Classification == "" {
+			attMap["classification"] = "Unclassified"
+		}
+		attMap["dataUsage"] = "Not_to_be_used_for_navigational_or_targeting_purposes."
 	}
 
 	return attMap, nil

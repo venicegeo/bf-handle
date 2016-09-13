@@ -39,7 +39,7 @@ func main() {
 		r.ParseForm()
 		switch r.URL.Path {
 		case "/":
-			fmt.Fprintf(w, "hello.")
+			fmt.Fprintf(w, `{"greetings":"hello."}`)
 		case "/execute":
 			bf.Execute(w, r)
 		case "/executeBatch":

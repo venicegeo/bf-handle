@@ -26,12 +26,8 @@ import (
 // only pzsvc-ossim is available).  The results get pushed back through
 // the given channel.
 func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
-	bandIDs, err := provision(inpObj, []string{"red", "green", "blue"})
-	if err != nil {
-		rgbChan <- ("Error: " + err.Error())
-		return
-	}
 	var (
+		err       error
 		fileID    string
 		outStruct *pzsvc.ExecOut
 	)
@@ -40,18 +36,14 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 	case "pzsvc-ossim":
 
 		outFName := "rgb.TIF"
-
-		funcStr := fmt.Sprintf(`bandmerge --output-radiometry U8 --red %s --green %s --blue %s %s`,
-			bandIDs[0]+".TIF",
-			bandIDs[1]+".TIF",
-			bandIDs[2]+".TIF",
+		bands := inpObj.MetaJSON.Properties.Bands
+		funcStr := fmt.Sprintf(`bandmerge --output-radiometry U8 --red red.TIF --green green.TIF --blue blue.TIF %s`,
 			outFName)
 
 		execObj := pzsvc.ExecIn{FuncStr: funcStr,
-			InFiles:    bandIDs,
-			OutGeoJSON: nil,
+			InExtURLs:  []string{0: bands["red"], 1: bands["green"], 2: bands["blue"]},
+			InExtNames: []string{0: "red.TIF", 1: "green.TIF", 2: "blue.TIF"},
 			OutGeoTIFF: []string{0: outFName},
-			OutTxt:     nil,
 			AlgoURL:    inpObj.BndMrgURL,
 			AuthKey:    inpObj.PzAuth}
 

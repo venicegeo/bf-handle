@@ -52,19 +52,23 @@ type tidesOut struct {
 	Locations []tideWrapper `json:"locations"`
 }
 
-func toTideIn(feature *geojson.Feature) *tideIn {
+func findTide(bbox geojson.BoundingBox, timeStr string) *tideIn {
 	var (
 		center  *geojson.Point
 		dtgTime time.Time
 		err     error
 	)
-	if center = feature.Bbox.Centroid(); center == nil {
+	if center = bbox.Centroid(); center == nil {
 		return nil
 	}
-	if dtgTime, err = time.Parse("2006-01-02T15:04:05.000000-07:00", feature.PropertyString("acquiredDate")); err != nil {
+	if dtgTime, err = time.Parse("2006-01-02T15:04:05.000000-07:00", timeStr); err != nil {
 		return nil
 	}
 	return &tideIn{Lat: center.Coordinates[1], Lon: center.Coordinates[0], Dtg: dtgTime.Format("2006-01-02-15-04")}
+}
+
+func toTideIn(feature *geojson.Feature) *tideIn {
+	return findTide(feature.Bbox, feature.PropertyString("acquiredDate"))
 }
 
 func toTidesIn(features []*geojson.Feature) *tidesIn {

@@ -196,8 +196,8 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
 			if !inpObj.SkipDetection {
 				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), sceneScore(footprint))
-				gsInpObj.MetaJSON = footprint
-				if gen, _, err = genShoreline(gsInpObj); err != nil {
+
+				if gen, err = popShoreline(gsInpObj, footprint); err != nil {
 					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
 					continue
 				}
