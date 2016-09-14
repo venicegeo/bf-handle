@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/venicegeo/pzsvc-lib"
 )
@@ -46,7 +47,7 @@ type trigUIStruct struct {
 	Name        string      `json:"name,omitempty"`
 }
 
-func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
+func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) (string, error) {
 
 	var trigObj pzsvc.Trigger
 	trigObj.Name = trigData.Name
@@ -112,15 +113,21 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 	bfInpObj := &trigData.BFinpObj
 	bfInpObj.LGroupID = layerGID
 	bfInpObj.MetaURL = "$link"
-	b, _ := json.Marshal(bfInpObj)
+	b, err := json.Marshal(bfInpObj)
+	if err != nil {
+		return "", pzsvc.TraceErr(err)
+	}
 
 	jobInpObj := pzsvc.DataType{Content: string(b), Type: "body", MimeType: "application/json"}
 	jobOutpObj := pzsvc.DataType{Content: "", Type: "text", MimeType: "application/json"}
 	jobIntMap := map[string]pzsvc.DataType{"body": jobInpObj}
 	trigObj.Job.JobType.Data = pzsvc.JobData{ServiceID: trigData.ServiceID, DataInputs: jobIntMap, DataOutput: []pzsvc.DataType{jobOutpObj}}
 
-	b2, _ := json.Marshal(trigObj)
-	return string(b2)
+	b2, err := json.Marshal(trigObj)
+	if err != nil {
+		return "", pzsvc.TraceErr(err)
+	}
+	return string(b2), nil
 }
 
 // NewProductLine ....
@@ -173,18 +180,22 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 
 	layerGID, err := pzsvc.AddGeoServerLayerGroup(bfInpObj.PzAddr, bfInpObj.PzAuth)
 	if err != nil {
-		handleOut(w, "Error: pzsvc.AddGeoServerLayerGroup: "+err.Error(), outpObj, http.StatusBadRequest)
+		handleOut(w, pzsvc.TraceStr(err.Error()), outpObj, http.StatusBadRequest)
 		return
 	}
 
-	outJSON := buildTriggerRequestJSON(inpObj, layerGID)
+	outJSON, err := buildTriggerRequestJSON(inpObj, layerGID)
+	if err != nil {
+		handleOut(w, pzsvc.TraceStr(err.Error()), outpObj, http.StatusBadRequest)
+		return
+	}
 	fmt.Println(outJSON)
 
 	// TODO: once we can make a few test-runs and get a better idea of the shape of the
 	// response object, we may want to do something with them.
 	b, err := pzsvc.RequestKnownJSON("POST", outJSON, bfInpObj.PzAddr+`/trigger`, bfInpObj.PzAuth, &idObj)
 	if err != nil {
-		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
+		handleOut(w, pzsvc.TraceStr(err.Error())+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
 		return
 	}
 
@@ -193,7 +204,11 @@ func NewProductLine(w http.ResponseWriter, r *http.Request) {
 
 	outpObj.LayerGroupID = layerGID
 
-	b3, _ := json.Marshal(outpObj)
+	b3, err := json.Marshal(outpObj)
+	if err != nil {
+		handleOut(w, pzsvc.TraceStr(err.Error()), outpObj, http.StatusInternalServerError)
+		return
+	}
 	fmt.Println(string(b3))
 
 	handleOut(w, "", outpObj, http.StatusOK)
@@ -236,36 +251,37 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 			}
 		}
 		for rKey, rVal = range query.Range {
-			switch rKey {
-			case "data~cloudCover":
+			keyBase := (strings.Split(rKey, "~"))[2]
+			switch keyBase {
+			case "cloudCover":
 				trigOutp.CloudCover, err = toFloat(rVal.LTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad cloudCover` + err.Error())
 				}
-			case "data~minX":
+			case "minx":
 				trigOutp.MaxX, err = toFloat(rVal.LTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad minX` + err.Error())
 				}
-			case "data~minY":
+			case "miny":
 				trigOutp.MaxY, err = toFloat(rVal.LTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad minY` + err.Error())
 				}
-			case "data~maxX":
+			case "maxx":
 				trigOutp.MinX, err = toFloat(rVal.GTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad maxX` + err.Error())
 				}
-			case "data~maxY":
+			case "maxy":
 				trigOutp.MinY, err = toFloat(rVal.GTE)
 				if err != nil {
 					return nil, errors.New(`extractTrigReqStruct: bad maxY` + err.Error())
 				}
-			case "data~resolution":
+			case "resolution":
 				trigOutp.MaxRes = toString(rVal.LTE)
 				trigOutp.MinRes = toString(rVal.GTE)
-			case "data~acquiredDate":
+			case "acquiredDate":
 				trigOutp.MaxDate = toString(rVal.LTE)
 				trigOutp.MinDate = toString(rVal.GTE)
 			default:
@@ -366,7 +382,9 @@ AddTriggerLoop:
 		}
 		trigFltTest := newTrig.MinX + newTrig.MinY + newTrig.MaxX + newTrig.MaxY + newTrig.CloudCover
 		if newTrig.MinDate == "" || math.IsNaN(trigFltTest) {
-			fmt.Println(errors.New("Trigger not containing required parameter"))
+			fmt.Println("Trigger not containing required parameter.")
+			fmt.Printf("\nminx: %f, miny: %f, maxx: %f, maxy: %f, cloudCover: %f, minDate: %s.",
+				newTrig.MinX, newTrig.MinY, newTrig.MaxX, newTrig.MaxY, newTrig.CloudCover, newTrig.MinDate)
 			continue AddTriggerLoop
 		}
 		outpObj.TrigList = append(outpObj.TrigList, *newTrig)
