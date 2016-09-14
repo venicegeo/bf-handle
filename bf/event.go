@@ -27,23 +27,23 @@ import (
 )
 
 type trigUIStruct struct {
-	BFinpObj     gsInpStruct `json:"bfInputJSON,omitempty"`
-	MaxX         float64     `json:"maxX"`
-	MinX         float64     `json:"minX"`
-	MaxY         float64     `json:"maxY"`
-	MinY         float64     `json:"minY"`
-	CloudCover   float64     `json:"cloudCover"`
-	MaxRes       string      `json:"maxRes,omitempty"`
-	MinRes       string      `json:"minRes,omitempty"`
-	MaxDate      string      `json:"maxDate"`
-	MinDate      string      `json:"minDate"`
-	SensorName   string      `json:"sensorName,omitempty"`
-	SpatFilter   string      `json:"spatialFilterId"`
-	EventTypeIDs []string    `json:"eventTypeId,omitempty"`
-	ServiceID    string      `json:"serviceId,omitempty"`
-	TriggerID    string      `json:"Id,omitempty"`
-	CreatedBy    string      `json:"createdBy,omitempty"`
-	Name         string      `json:"name,omitempty"`
+	BFinpObj    gsInpStruct `json:"bfInputJSON,omitempty"`
+	MaxX        float64     `json:"maxx"`
+	MinX        float64     `json:"minx"`
+	MaxY        float64     `json:"maxy"`
+	MinY        float64     `json:"miny"`
+	CloudCover  float64     `json:"cloudCover"`
+	MaxRes      string      `json:"maxRes,omitempty"`
+	MinRes      string      `json:"minRes,omitempty"`
+	MaxDate     string      `json:"maxDate"`
+	MinDate     string      `json:"minDate"`
+	SensorName  string      `json:"sensorName,omitempty"`
+	SpatFilter  string      `json:"spatialFilterId"`
+	EventTypeID string      `json:"eventTypeId,omitempty"`
+	ServiceID   string      `json:"serviceId,omitempty"`
+	TriggerID   string      `json:"Id,omitempty"`
+	CreatedBy   string      `json:"createdBy,omitempty"`
+	Name        string      `json:"name,omitempty"`
 }
 
 func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
@@ -51,7 +51,7 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 	var trigObj pzsvc.Trigger
 	trigObj.Name = trigData.Name
 	trigObj.Enabled = true
-	trigObj.Condition.EventTypeIDs = append(trigData.EventTypeIDs)
+	trigObj.EventTypeID = trigData.EventTypeID
 
 	queryFilters := []pzsvc.QueryClause{}
 	if trigData.SensorName != "" {
@@ -65,22 +65,22 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 	}
 	{
 		cClause := pzsvc.CompClause{LTE: trigData.MaxX, GTE: nil, Format: ""}
-		XRange := map[string]pzsvc.CompClause{"data.minX": cClause}
+		XRange := map[string]pzsvc.CompClause{"data.minx": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	{
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinX, Format: ""}
-		XRange := map[string]pzsvc.CompClause{"data.maxX": cClause}
+		XRange := map[string]pzsvc.CompClause{"data.maxx": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: XRange})
 	}
 	{
 		cClause := pzsvc.CompClause{LTE: trigData.MaxY, GTE: nil, Format: ""}
-		YRange := map[string]pzsvc.CompClause{"data.minY": cClause}
+		YRange := map[string]pzsvc.CompClause{"data.miny": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 	{
 		cClause := pzsvc.CompClause{LTE: nil, GTE: trigData.MinY, Format: ""}
-		YRange := map[string]pzsvc.CompClause{"data.maxY": cClause}
+		YRange := map[string]pzsvc.CompClause{"data.maxy": cClause}
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: YRange})
 	}
 
@@ -105,7 +105,7 @@ func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) string {
 		queryFilters = append(queryFilters, pzsvc.QueryClause{Match: nil, Range: dateFilter})
 	}
 
-	trigObj.Condition.Query.Query.Bool.Filter = queryFilters
+	trigObj.Condition.Query.Bool.Filter = queryFilters
 
 	trigObj.Job.JobType.Type = "execute-service"
 
@@ -205,7 +205,7 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 
 	trigOutp.Name = trigInp.Name
 	trigOutp.TriggerID = trigInp.TriggerID
-	trigOutp.EventTypeIDs = append(trigInp.Condition.EventTypeIDs)
+	trigOutp.EventTypeID = trigInp.EventTypeID
 	trigOutp.ServiceID = trigInp.Job.JobType.Data.ServiceID
 	trigOutp.CreatedBy = trigInp.CreatedBy
 	trigOutp.CloudCover = math.NaN()
@@ -223,7 +223,7 @@ func extractTrigReqStruct(trigInp pzsvc.Trigger) (*trigUIStruct, error) {
 	bfInpObj.MetaURL = ""
 	trigOutp.BFinpObj = bfInpObj
 
-	queryList := trigInp.Condition.Query.Query.Bool.Filter
+	queryList := trigInp.Condition.Query.Bool.Filter
 	var query pzsvc.QueryClause
 	for _, query = range queryList {
 		var mKey, mVal, rKey string
@@ -342,26 +342,14 @@ func GetProductLines(w http.ResponseWriter, r *http.Request) {
 
 AddTriggerLoop:
 	for _, trig := range inTrigList.Data {
-		if inpObj.EventTypeID != "" {
-			onList := false
-			for _, trigEvTyp := range trig.Condition.EventTypeIDs {
-				if trigEvTyp == inpObj.EventTypeID {
-					onList = true
-				}
-			}
-			if !onList {
-				continue AddTriggerLoop
-			}
+		if inpObj.EventTypeID != "" && inpObj.EventTypeID != trig.EventTypeID {
+			continue AddTriggerLoop
 		}
-		if inpObj.ServiceID != "" {
-			if trig.Job.JobType.Data.ServiceID != inpObj.ServiceID {
-				continue AddTriggerLoop
-			}
+		if inpObj.ServiceID != "" && inpObj.ServiceID != trig.Job.JobType.Data.ServiceID {
+			continue AddTriggerLoop
 		}
-		if inpObj.CreatedBy != "" {
-			if trig.CreatedBy != inpObj.CreatedBy {
-				continue AddTriggerLoop
-			}
+		if inpObj.CreatedBy != "" && inpObj.CreatedBy != trig.CreatedBy {
+			continue AddTriggerLoop
 		}
 		if val, ok := trig.Job.JobType.Data.DataInputs["body"]; ok {
 			if val.Content == "" {
