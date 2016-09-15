@@ -318,24 +318,24 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 		err              error
 		tidesInObj       *tidesIn
 		tidesOutObj      *tidesOut
-		imageDescriptors catalog.ImageDescriptors
+		sceneDescriptors catalog.SceneDescriptors
 	)
 	options.NoCache = true
 	options.Rigorous = true
 	geometry, _ = geojsongeos.GeoJSONFromGeos(point)
 	feature = geojson.NewFeature(geometry, "", nil)
 	feature.Bbox = feature.ForceBbox()
-	if imageDescriptors, _, err = catalog.GetImages(feature, options); err != nil {
-		log.Printf("Failed to get images from image catalog: %v", err.Error())
+	if sceneDescriptors, _, err = catalog.GetScenes(feature, options); err != nil {
+		log.Printf("Failed to get scenes from image catalog: %v", err.Error())
 		return nil
 	}
-	if len(imageDescriptors.Images.Features) == 0 {
+	if len(sceneDescriptors.Scenes.Features) == 0 {
 		log.Printf("Found no images in catalog search. %v %#v", feature.String(), options)
 	}
 
 	// Incorporate Tide Prediction
 	if inpObj != nil && inpObj.TidesAddr != "" {
-		if tidesInObj = toTidesIn(imageDescriptors.Images.Features); tidesInObj != nil {
+		if tidesInObj = toTidesIn(sceneDescriptors.Scenes.Features); tidesInObj != nil {
 			if tidesOutObj, err = getTides(*tidesInObj, inpObj.TidesAddr); err == nil {
 				// Loop 1: Add the tide information to each image
 				for _, tideObj := range tidesOutObj.Locations {
@@ -352,7 +352,7 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	}
 
 	// Loop 2: Check their scores
-	for _, currentScene = range imageDescriptors.Images.Features {
+	for _, currentScene = range sceneDescriptors.Scenes.Features {
 		currentScore = sceneScore(currentScene)
 		if currentScore > bestScore {
 			bestScene = currentScene
