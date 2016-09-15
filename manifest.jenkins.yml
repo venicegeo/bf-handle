@@ -3,8 +3,8 @@ applications:
   host: bf-handle
   command: chmod 755 ./bf-handle.bin && ./bf-handle.bin
   buildpack: https://github.com/venicegeo/binary-pzsvc-image-catalog-buildpack
-  memory: 1G
-  disk_quota: 2G
+  memory: 2G
+  disk_quota: 1G
   instances: 1
   timeout: 180
   services: 
