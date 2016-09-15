@@ -88,6 +88,7 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 	if captured, err = geos.EmptyPolygon(); err != nil {
 		return nil, pzsvc.TraceErr(err)
 	}
+	log.Print("\nProducing footprint region.")
 	if footprintRegion, err = getFootprintRegion(gjIfc, 0.25); err != nil {
 		return nil, err
 	}
@@ -119,6 +120,7 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 		}
 	}
 	sort.Sort(ByScore(bestImages.Features))
+	log.Print("\nClipping footprints.")
 	bestImages.Features = selfClip(bestImages.Features)
 	bestImages.Features = clipFootprints(bestImages.Features, footprintRegion)
 
@@ -336,6 +338,7 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	// Incorporate Tide Prediction
 	if inpObj != nil && inpObj.TidesAddr != "" {
 		if tidesInObj = toTidesIn(sceneDescriptors.Scenes.Features); tidesInObj != nil {
+			fmt.Print("\nLoading tide information.")
 			if tidesOutObj, err = getTides(*tidesInObj, inpObj.TidesAddr); err == nil {
 				// Loop 1: Add the tide information to each image
 				for _, tideObj := range tidesOutObj.Locations {
