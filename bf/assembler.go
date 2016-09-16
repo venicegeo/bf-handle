@@ -189,7 +189,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	b, _ = json.Marshal(inpObj)
 	json.Unmarshal(b, &gsInpObj)
 
-	log.Printf("Input object: %#v", gsInpObj)
+	fmt.Printf("\nReady to start shoreline assembly. Input object: %#v", gsInpObj)
 	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
 	for inx, footprint := range footprints.Features {
@@ -216,7 +216,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Print("Finished shoreline generation. Starting assembly.")
+	fmt.Print("\nFinished shoreline generation. Starting assembly.")
 
 	if shorelines, err = assembleShorelines(inpObj); err != nil {
 		handleError(err.Error(), http.StatusInternalServerError)
@@ -247,37 +247,6 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(b)
 	w.Header().Set("Content-Type", "application/json")
-}
-
-func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) (string, []byte, error) {
-	var (
-		writeFc    = geojson.NewFeatureCollection(nil)
-		feature    *geojson.Feature
-		properties map[string]interface{}
-		b          []byte
-		result     string
-		err        error
-	)
-
-	// We can't write some properties to Piazza
-	for _, footprint := range footprints.Features {
-		properties = make(map[string]interface{})
-		for key, property := range footprint.Properties {
-			switch key {
-			case "bands", "cache.shoreDataID", "cache.shoreDeplID":
-				continue
-			default:
-				properties[key] = property
-			}
-		}
-		feature = geojson.NewFeature(footprint.Geometry, footprint.ID, properties)
-		writeFc.Features = append(writeFc.Features, feature)
-	}
-
-	// Ingest the footprints, store the Piazza ID in outpObj
-	b, _ = geojson.Write(writeFc)
-	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil)
-	return result, b, err
 }
 
 func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) {

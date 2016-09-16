@@ -88,7 +88,7 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 	if captured, err = geos.EmptyPolygon(); err != nil {
 		return nil, pzsvc.TraceErr(err)
 	}
-	log.Print("\nProducing footprint region.")
+	fmt.Print("\nProducing footprint region.")
 	if footprintRegion, err = getFootprintRegion(gjIfc, 0.25); err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func crawlFootprints(gjIfc interface{}, asInpObj *asInpStruct) (*geojson.Feature
 		}
 	}
 	sort.Sort(ByScore(bestImages.Features))
-	log.Print("\nClipping footprints.")
+	fmt.Print("\nClipping footprints.")
 	bestImages.Features = selfClip(bestImages.Features)
 	bestImages.Features = clipFootprints(bestImages.Features, footprintRegion)
 
@@ -327,13 +327,16 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	geometry, _ = geojsongeos.GeoJSONFromGeos(point)
 	feature = geojson.NewFeature(geometry, "", nil)
 	feature.Bbox = feature.ForceBbox()
+	fmt.Print("\nGetting scenes.")
 	if sceneDescriptors, _, err = catalog.GetScenes(feature, options); err != nil {
 		log.Printf("Failed to get scenes from image catalog: %v", err.Error())
 		return nil
 	}
 	if len(sceneDescriptors.Scenes.Features) == 0 {
 		log.Printf("Found no images in catalog search. %v %#v", feature.String(), options)
+		return nil
 	}
+	fmt.Print("\nGot scenes.")
 
 	// Incorporate Tide Prediction
 	if inpObj != nil && inpObj.TidesAddr != "" {
@@ -400,4 +403,20 @@ func sceneScore(scene *geojson.Feature) float64 {
 		result -= math.Sqrt(0.1) * (maxTide - currTide) / (maxTide - minTide)
 	}
 	return result
+}
+
+func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) (string, []byte, error) {
+	var (
+		b      []byte
+		result string
+		err    error
+	)
+
+	// Working around annoying relational restrictions in Piazza
+	footprints.FillProperties()
+
+	// Ingest the footprints, store the Piazza ID in outpObj
+	b, _ = geojson.Write(footprints)
+	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil)
+	return result, b, err
 }
