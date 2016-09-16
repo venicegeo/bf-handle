@@ -225,8 +225,12 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 
 	// Ingest the shorelines, store the Piazza ID in outpObj
 	ingest := true
+
+	// Working around annoying relational restrictions in Piazza
+	shorelines.FillProperties()
+
 	b, _ = geojson.Write(shorelines)
-	if result.ShoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil); err == nil {
+	if result.ShoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, "bf-handle ExecuteBatch", "1.0", inpObj.PzAuth, b, nil); err == nil {
 		if result.ShoreDepl, err = pzsvc.DeployToGeoServer(result.ShoreDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
 			ingest = false
 			log.Printf(pzsvc.TraceStr("Failed to deploy shorelines GeoJSON to GeoServer: " + err.Error()))

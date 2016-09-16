@@ -416,6 +416,6 @@ func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) 
 
 	// Ingest the footprints, store the Piazza ID in outpObj
 	b, _ = geojson.Write(footprints)
-	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil)
+	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, "bf-handle writeFootprints", "1.0", inpObj.PzAuth, b, nil)
 	return result, b, err
 }
