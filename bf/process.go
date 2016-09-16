@@ -156,7 +156,7 @@ func popShoreline(inpObj gsInpStruct, inFeat *geojson.Feature) (*geojson.Feature
 		return nil, pzsvc.ErrWithTrace("Error: Must specify Feature.")
 	}
 
-	if byts, err = json.Marshal(inpObj.metaFeat); err != nil {
+	if byts, err = json.Marshal(inFeat); err != nil {
 		return nil, pzsvc.TraceErr(err)
 	}
 

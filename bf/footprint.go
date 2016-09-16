@@ -336,7 +336,6 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 		log.Printf("Found no images in catalog search. %v %#v", feature.String(), options)
 		return nil
 	}
-	fmt.Print("\nGot scenes.")
 
 	// Incorporate Tide Prediction
 	if inpObj != nil && inpObj.TidesAddr != "" {

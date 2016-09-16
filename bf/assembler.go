@@ -195,16 +195,16 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
 			if !inpObj.SkipDetection {
-				fmt.Printf("Collecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), sceneScore(footprint))
+				fmt.Printf("Detecting scene %v (#%v of %v, score %v)\n", footprint.ID, inx+1, len(footprints.Features), sceneScore(footprint))
 
 				if gen, err = popShoreline(gsInpObj, footprint); err != nil {
-					log.Printf("Failed to collect feature %v: %v", footprint.ID, err.Error())
+					log.Printf("Failed to detect scene %v: %v", footprint.ID, err.Error())
 					continue
 				}
 				inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
 				shoreDataID = gen.PropertyString("shoreDataID")
 				shoreDeplID = gen.PropertyString("shoreDeplID")
-				fmt.Printf("Finished collecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
+				fmt.Printf("Finished detecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
 				go addCache(footprint.ID, shoreDataID, shoreDeplID)
 				debug.FreeOSMemory()
 			}
