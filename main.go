@@ -53,7 +53,7 @@ func main() {
 		case "/getProductLines":
 			bf.GetProductLines(w, r)
 		case "/eventTypes":
-			bf.EventTypes(w, r)
+			pzsvc.WriteEventTypes(w, r)
 		case "/resultsByScene":
 			bf.ResultsByScene(w, r)
 		case "/resultsByProductLine":
