@@ -398,13 +398,3 @@ AddTriggerLoop:
 	pzsvc.HTTPOut(w, string(b), http.StatusOK)
 	return
 }
-
-// EventTypes returns the event types known to bf-handle
-func EventTypes(writer http.ResponseWriter, request *http.Request) {
-	etm := pzsvc.GetEventTypeMap()
-	if b, err := json.Marshal(etm); err == nil {
-		pzsvc.HTTPOut(writer, string(b), http.StatusOK)
-	} else {
-		handleOut(writer, "Marshalling error: "+err.Error()+".", etm, http.StatusInternalServerError)
-	}
-}

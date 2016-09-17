@@ -15,7 +15,6 @@
 package bf
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -429,7 +428,6 @@ func ingestFootprintsSucceeded(footprintsID string, inpObj asInpStruct) {
 	var (
 		err       error
 		eventType pzsvc.EventType
-		b         []byte
 	)
 	etm := make(map[string]interface{})
 	etm["footprintsDataID"] = "string"
@@ -440,21 +438,18 @@ func ingestFootprintsSucceeded(footprintsID string, inpObj asInpStruct) {
 			Data:        make(map[string]interface{})}
 		event.Data["footprintsDataID"] = footprintsID
 
-		b, _ = json.Marshal(&event)
-		eventString := string(b)
-		if _, err = pzsvc.SubmitSinglePart("POST", eventString, inpObj.PzAddr+"/event", inpObj.PzAuth); err == nil {
+		if _, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
 			fmt.Printf("Ingested footprints to Piazza, received ID %v.", footprintsID)
 		} else {
-			log.Printf("Failed to post event %v\n%v", eventString, err.Error())
+			log.Printf("Failed to post event %#v\n%v", event, err.Error())
 		}
 	}
 }
 func ingestFootprintsFailed(footprints string, inpObj asInpStruct) {
 	var (
-		b         []byte
-		err       error
-		eventType pzsvc.EventType
-		response  *http.Response
+		err           error
+		eventType     pzsvc.EventType
+		eventResponse pzsvc.Event
 	)
 	etm := make(map[string]interface{})
 	etm["footprints"] = "string"
@@ -465,15 +460,10 @@ func ingestFootprintsFailed(footprints string, inpObj asInpStruct) {
 			Data:        make(map[string]interface{})}
 		event.Data["footprints"] = footprints
 
-		b, _ = json.Marshal(&event)
-		eventString := string(b)
-		if response, err = pzsvc.SubmitSinglePart("POST", eventString, inpObj.PzAddr+"/event", inpObj.PzAuth); err == nil {
-			defer response.Body.Close()
-			bytes, _ := ioutil.ReadAll(response.Body)
-
-			fmt.Printf("Failed to ingest footprints to Piazza, but posted event:\n%v", string(bytes))
+		if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.EventID)
 		} else {
-			log.Printf("Failed to post event %v\n%v", eventString, err.Error())
+			log.Printf("Failed to ingest footprints to Piazza or post event %#v\n%v", event, err.Error())
 		}
 	}
 }

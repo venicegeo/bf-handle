@@ -48,12 +48,12 @@ type asInpStruct struct {
 	ForceDetection   bool                       `json:"forceDetection"`        // true: ignore cache
 }
 
-type ebOutStruct struct {
-	FootprintsDataID string           `json:"footprintsDataID"` // Piazza ID for GeoJSON of footprints
-	FootprintsDepl   *pzsvc.DeplStrct `json:"footprintsDepl"`   // Piazza ID for GeoJSON of footprints
-	ShoreDataID      string           `json:"shoreDataID"`      // Piazza ID for GeoJSON of shorelines
-	ShoreDepl        *pzsvc.DeplStrct `json:"shoreDepl"`        // Piazza ID for GeoJSON of shorelines
-}
+// type ebOutStruct struct {
+// 	FootprintsDataID string           `json:"footprintsDataID"` // Piazza ID for GeoJSON of footprints
+// 	FootprintsDepl   *pzsvc.DeplStrct `json:"footprintsDepl"`   // Piazza ID for GeoJSON of footprints
+// 	ShoreDataID      string           `json:"shoreDataID"`      // Piazza ID for GeoJSON of shorelines
+// 	ShoreDepl        *pzsvc.DeplStrct `json:"shoreDepl"`        // Piazza ID for GeoJSON of shorelines
+// }
 
 // AssembleShorelines creates a single dataset from some input or something
 func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
@@ -97,16 +97,12 @@ func AssembleShorelines(w http.ResponseWriter, r *http.Request) {
 // based on a GeoJSON object representing one or more geometries
 func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	var (
-		b          []byte
-		err        error
-		inpObj     asInpStruct
-		shorelines *geojson.FeatureCollection
-		gen        *geojson.Feature
-		footprints *geojson.FeatureCollection
-		result     ebOutStruct
-		gsInpObj   gsInpStruct
-		shoreDataID,
-		shoreDeplID string
+		b                []byte
+		err              error
+		inpObj           asInpStruct
+		footprints       *geojson.FeatureCollection
+		footprintsDataID string
+		footprintsDepl   *pzsvc.DeplStrct
 	)
 
 	// clients to this function expect a JSON response
@@ -145,9 +141,9 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Ingest the footprints, store the Piazza ID
-		if result.FootprintsDataID, b, err = ingestFootprints(footprints, inpObj); err == nil {
-			if result.FootprintsDepl, err = pzsvc.DeployToGeoServer(result.FootprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err == nil {
-				fmt.Printf("Deployed footprints go GeoServer. DeplID: %v", result.FootprintsDepl.DeplID)
+		if footprintsDataID, b, err = ingestFootprints(footprints, inpObj); err == nil {
+			if footprintsDepl, err = pzsvc.DeployToGeoServer(footprintsDataID, "", inpObj.PzAddr, inpObj.PzAuth); err == nil {
+				fmt.Printf("Deployed footprints go GeoServer. DeplID: %v", footprintsDepl.DeplID)
 			} else {
 				log.Printf(pzsvc.TraceStr("Failed to deploy footprint GeoJSON to GeoServer: " + err.Error()))
 			}
@@ -169,7 +165,6 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 					log.Printf("Failed to retrieve image %v from catalog.", footprint.ID)
 				}
 			}
-			result.FootprintsDataID = inpObj.FootprintsDataID
 		} else {
 			errStr := pzsvc.TraceStr("Error: Failed to download footprints from ID " + inpObj.FootprintsDataID + ": " + err.Error())
 			handleError(errStr, http.StatusBadRequest)
@@ -182,12 +177,29 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go detectShorelines(inpObj, footprints)
+	w.Write([]byte(fmt.Sprintf("Starting shoreline assembly. Footprints ID: %v", footprintsDataID)))
+}
+
+func detectShorelines(inpObj asInpStruct, footprints *geojson.FeatureCollection) {
+	var (
+		shoreDataID   string
+		shoreDeplID   string
+		gen           *geojson.Feature
+		err           error
+		shorelines    *geojson.FeatureCollection
+		shoreDepl     *pzsvc.DeplStrct
+		gsInpObj      gsInpStruct
+		eventType     pzsvc.EventType
+		eventResponse pzsvc.Event
+		b             []byte
+		ingestError   string
+	)
+	inpObj.Collections = geojson.NewFeatureCollection(nil)
+
 	// Convert the asInpStruct to a gsInpStruct
 	b, _ = json.Marshal(inpObj)
 	json.Unmarshal(b, &gsInpObj)
-
-	fmt.Printf("\nReady to start shoreline assembly. Input object: %#v", gsInpObj)
-	inpObj.Collections = geojson.NewFeatureCollection(nil)
 
 	for inx, footprint := range footprints.Features {
 		if shoreDataID = footprint.PropertyString("cache.shoreDataID"); inpObj.ForceDetection || shoreDataID == "" {
@@ -201,7 +213,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 				inpObj.Collections.Features = append(inpObj.Collections.Features, gen)
 				shoreDataID = gen.PropertyString("shoreDataID")
 				shoreDeplID = gen.PropertyString("shoreDeplID")
-				fmt.Printf("Finished detecting feature %v. Data ID: %v\n", footprint.ID, shoreDataID)
+				fmt.Printf("Finished detecting feature %v. Data ID: %v", footprint.ID, shoreDataID)
 				go addCache(footprint.ID, shoreDataID, shoreDeplID)
 				debug.FreeOSMemory()
 			}
@@ -216,38 +228,56 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 	fmt.Print("\nFinished shoreline generation. Starting assembly.")
 
 	if shorelines, err = assembleShorelines(inpObj); err != nil {
-		handleError(err.Error(), http.StatusInternalServerError)
-		return
+		executeBatchFailed(err.Error(), inpObj)
 	}
 
 	// Ingest the shorelines, store the Piazza ID in outpObj
-	ingest := true
 
 	// Working around annoying relational restrictions in Piazza
 	shorelines.FillProperties()
 
 	b, _ = geojson.Write(shorelines)
-	if result.ShoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, "bf-handle ExecuteBatch", "1.0", inpObj.PzAuth, b, nil); err == nil {
-		if result.ShoreDepl, err = pzsvc.DeployToGeoServer(result.ShoreDataID, "", inpObj.PzAddr, inpObj.PzAuth); err != nil {
-			ingest = false
-			log.Printf(pzsvc.TraceStr("Failed to deploy shorelines GeoJSON to GeoServer: " + err.Error()))
+	if shoreDataID, err = pzsvc.Ingest("shorelines.geojson", "geojson", inpObj.PzAddr, "bf-handle ExecuteBatch", "1.0", inpObj.PzAuth, b, nil); err == nil {
+		if shoreDepl, err = pzsvc.DeployToGeoServer(shoreDataID, "", inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			shoreDeplID = shoreDepl.DeplID
+		} else {
+			ingestError = "Failed to deploy shorelines GeoJSON to GeoServer: " + err.Error()
+			log.Printf(pzsvc.TraceStr(ingestError))
 		}
 	} else {
-		ingest = false
-		log.Printf(pzsvc.TraceStr("Failed to ingest shorelines GeoJSON: " + err.Error()))
-		for inx := 0; inx < 100 && inx < len(shorelines.Features); inx++ {
-			log.Printf("%#v", shorelines.Features[inx].Properties)
+		ingestError = "Failed to ingest shorelines GeoJSON: " + err.Error()
+		for inx := 0; inx < 10 && inx < len(shorelines.Features); inx++ {
+			ingestError = ingestError + fmt.Sprintf("%#v", shorelines.Features[inx].Properties)
 		}
+		log.Printf(pzsvc.TraceStr(ingestError))
 	}
 
 	// If the ingest works, writes the output object
 	// If not, just write the detected shorelines JSON
-	if ingest {
-		b, _ = json.Marshal(result)
-		log.Printf("Completed batch process: \n%v", string(b))
+	if ingestError == "" {
+
+		etm := make(map[string]interface{})
+		etm["shoreDataID"] = "string"
+		etm["shoreDeplID"] = "string"
+
+		if eventType, err = pzsvc.GetEventType(":beachfront:executeBatch:completed", etm, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			event := pzsvc.Event{
+				EventTypeID: eventType.EventTypeID,
+				Data:        make(map[string]interface{})}
+			event.Data["shoreDataID"] = shoreDataID
+			event.Data["shoreDeplID"] = shoreDeplID
+
+			if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+				fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.EventID)
+			} else {
+				log.Printf(pzsvc.TraceStr(fmt.Sprintf("Failed to post event %#v\n%v", event, err.Error())))
+			}
+		} else {
+			log.Printf(pzsvc.TraceStr("Failed to get event type: " + err.Error()))
+		}
+	} else {
+		executeBatchFailed(ingestError, inpObj)
 	}
-	w.Write(b)
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) {
@@ -409,5 +439,28 @@ func addCache(imageID, shoreDataID, shoreDeplID string) {
 	// re-store the feature
 	if _, err = catalog.StoreFeature(feature, true); err != nil {
 		log.Printf(pzsvc.TraceStr("Failed to store image metadata with cached results: " + err.Error()))
+	}
+}
+
+func executeBatchFailed(message string, inpObj asInpStruct) {
+	var (
+		eventResponse pzsvc.Event
+		eventType     pzsvc.EventType
+		err           error
+	)
+	etm := make(map[string]interface{})
+	etm["error"] = "string"
+
+	if eventType, err = pzsvc.GetEventType(":beachfront:executeBatch:failed", etm, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+		event := pzsvc.Event{
+			EventTypeID: eventType.EventTypeID,
+			Data:        make(map[string]interface{})}
+		event.Data["error"] = message
+
+		if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			fmt.Printf("Failed to execute batch process, but posted event %v.", eventResponse.EventID)
+		} else {
+			log.Printf("Failed to execute batch process or post event.")
+		}
 	}
 }
