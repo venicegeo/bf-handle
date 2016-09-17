@@ -52,6 +52,8 @@ func main() {
 			bf.NewProductLine(w, r)
 		case "/getProductLines":
 			bf.GetProductLines(w, r)
+		case "/eventTypes":
+			bf.EventTypes(w, r)
 		case "/resultsByScene":
 			bf.ResultsByScene(w, r)
 		case "/resultsByProductLine":
@@ -86,7 +88,7 @@ func main() {
 				var outpObj struct {
 					Data pzsvc.JobStatusResp `json:"data,omitempty"`
 				}
-				_, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuthToken, &outpObj)
+				_, err = pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+"/job/"+alert.JobID, inpObj.PzAuthToken, &outpObj)
 				if err != nil {
 					continue
 				}
