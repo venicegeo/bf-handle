@@ -327,7 +327,6 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	geometry, _ = geojsongeos.GeoJSONFromGeos(point)
 	feature = geojson.NewFeature(geometry, "", nil)
 	feature.Bbox = feature.ForceBbox()
-	fmt.Print("\nGetting scenes.")
 	if sceneDescriptors, _, err = catalog.GetScenes(feature, options); err != nil {
 		log.Printf("Failed to get scenes from image catalog: %v", err.Error())
 		return nil

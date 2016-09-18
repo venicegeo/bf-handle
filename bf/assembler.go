@@ -268,7 +268,7 @@ func detectShorelines(inpObj asInpStruct, footprints *geojson.FeatureCollection)
 			event.Data["shoreDeplID"] = shoreDeplID
 
 			if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
-				fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.EventID)
+				log.Printf("Completed batch process and added event: %#v", eventResponse)
 			} else {
 				log.Printf(pzsvc.TraceStr(fmt.Sprintf("Failed to post event %#v\n%v", event, err.Error())))
 			}
@@ -341,7 +341,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 				continue
 			} else if empty {
 				area, _ := collGeomPart.Area()
-				log.Printf("Clipped geometry for %v is empty (size: %v). Continuing.", shoreDataID, area)
+				fmt.Printf("Clipped geometry for %v is empty (size: %v). Continuing.", shoreDataID, area)
 				// log.Printf("collGeomPart: %v", collGeomPart.String())
 				continue
 			}
@@ -364,7 +364,7 @@ func assembleShorelines(inpObj asInpStruct) (*geojson.FeatureCollection, error) 
 		if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 			for _, clippedGeom = range clippedGeoms {
 				if currFc = findBestMatches(fc, clippedGeom, collGeom); len(currFc.Features) == 0 {
-					log.Printf("Found no matching shorelines for %v.", shoreDataID)
+					fmt.Printf("Found no matching shorelines for %v.", shoreDataID)
 				} else {
 					result.Features = append(result.Features, currFc.Features...)
 					fmt.Printf("Found %v matching shorelines for %v.\n", len(currFc.Features), shoreDataID)

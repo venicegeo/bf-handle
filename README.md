@@ -77,7 +77,43 @@ bf-handle responds with a json string including the following:
 
 ### bf-handle/executeBatch
 
-...
+This endpoint is designed to support the detection of a large geographic area. It does the following:
+1. Produces a set of footprints based on the optimum scenes available (considering cloud cover, date of acquisition, and optionally the tide service)
+1. Ingests the footprints and publishes them as a WFS
+1. Executes shoreline detection on each scene
+1. Assembles the shorelines into a single product, correlating to the baseline and clipping the results to the footprints
+1. Ingests the shorelines and publishes them as a WFS
+
+You can execute it through a curl script like the following:
+
+```
+curl -X POST -S -s \
+  -H 'Content-Type: application/json' \
+    -o response.txt \
+    -d @$1 \
+    "http://localhost:8085/executeBatch"
+
+```
+
+The input file is a JSON object containing the following properties:
+
+* baseline: a GeoJSON object (usually a FeatureCollection) containing the baseline
+* footprintsID: the Piazza ID of the footprints for the optimum scenes (if you have this, you don't need a baseline)
+* algoType: something like "pzsvc-ossim"
+* svcURL The OSSIM URL, e.g., "https://pzsvc-ossim.stage.geointservices.io/execute"
+* pzAuthToken: something like "Basic JKLDJKLDFkl3jKLFDLK2JKkHDKJHHAI=="
+* pzAddr: something like: "https://pz-gateway.stage.geointservices.io"
+* dbAuthToken: a hex token provided by Piazza
+* bands: ["coastal","swir1"]
+* tidesAddr: location of the tide prediction service (optional), e.g., "https://TidePrediction.stage.geointservices.io/tides"
+
+This process will issue events to report its progress:
+* :beachfront:executeBatch:footprintsIngested
+* :beachfront:executeBatch:completed
+* :beachfront:executeBatch:failed
+
+See /eventTypes below to find the Event Type IDs for these Event Types. This process will ingest both the footprints and the detected shorelines into Piazza. The footprints ID will come back as a return to the service call. Since the actual detection 
+
 
 ### bf-handle/prepareFootprints
 
@@ -93,7 +129,11 @@ bf-handle/newProductLine creates a Beachfront Product Line.  A product line cons
 
 ### bf-handle/getProductLines
 
+...
 
+### bf-handle/eventTypes
+
+This is a simple endpoint that returns all known Event Types as a JSON object. When an event type is needed, you provide a root and the system does some version checking, adding a new Event Type if needed.
 
 ### bf-handle/resultsByScene
 
