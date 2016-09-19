@@ -327,7 +327,6 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	geometry, _ = geojsongeos.GeoJSONFromGeos(point)
 	feature = geojson.NewFeature(geometry, "", nil)
 	feature.Bbox = feature.ForceBbox()
-	fmt.Print("\nGetting scenes.")
 	if sceneDescriptors, _, err = catalog.GetScenes(feature, options); err != nil {
 		log.Printf("Failed to get scenes from image catalog: %v", err.Error())
 		return nil
@@ -404,7 +403,7 @@ func sceneScore(scene *geojson.Feature) float64 {
 	return result
 }
 
-func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) (string, []byte, error) {
+func ingestFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) (string, []byte, error) {
 	var (
 		b      []byte
 		result string
@@ -414,8 +413,56 @@ func writeFootprints(footprints *geojson.FeatureCollection, inpObj asInpStruct) 
 	// Working around annoying relational restrictions in Piazza
 	footprints.FillProperties()
 
-	// Ingest the footprints, store the Piazza ID in outpObj
+	// Ingest the footprints, get back the Piazza ID
 	b, _ = geojson.Write(footprints)
-	result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, inpObj.AlgoType, "1.0", inpObj.PzAuth, b, nil)
+	if result, err = pzsvc.Ingest("footprints.geojson", "geojson", inpObj.PzAddr, "bf-handle footprints", "1.0", inpObj.PzAuth, b, nil); err == nil {
+		go ingestFootprintsSucceeded(result, inpObj)
+	} else {
+		go ingestFootprintsFailed(string(b), inpObj)
+	}
 	return result, b, err
+}
+
+func ingestFootprintsSucceeded(footprintsID string, inpObj asInpStruct) {
+	var (
+		err       error
+		eventType pzsvc.EventType
+	)
+	etm := make(map[string]interface{})
+	etm["footprintsDataID"] = "string"
+
+	if eventType, err = pzsvc.GetEventType(":beachfront:executeBatch:footprintsIngested", etm, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+		event := pzsvc.Event{
+			EventTypeID: eventType.EventTypeID,
+			Data:        make(map[string]interface{})}
+		event.Data["footprintsDataID"] = footprintsID
+
+		if _, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			fmt.Printf("Ingested footprints to Piazza, received ID %v.", footprintsID)
+		} else {
+			log.Printf("Failed to post event %#v\n%v", event, err.Error())
+		}
+	}
+}
+func ingestFootprintsFailed(footprints string, inpObj asInpStruct) {
+	var (
+		err           error
+		eventType     pzsvc.EventType
+		eventResponse pzsvc.Event
+	)
+	etm := make(map[string]interface{})
+	etm["footprints"] = "string"
+
+	if eventType, err = pzsvc.GetEventType(":beachfront:executeBatch:footprintsCalculated", etm, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+		event := pzsvc.Event{
+			EventTypeID: eventType.EventTypeID,
+			Data:        make(map[string]interface{})}
+		event.Data["footprints"] = footprints
+
+		if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
+			fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.EventID)
+		} else {
+			log.Printf("Failed to ingest footprints to Piazza or post event %#v\n%v", event, err.Error())
+		}
+	}
 }
