@@ -91,9 +91,46 @@ bf-handle responds with a json string including the following:
 
 bf-handle/newProductLine creates a Beachfront Product Line.  A product line consists of a Pz trigger, calling bf-handle/execute, using a given eventTypeId and event filter, and associated with a new geoserver layer group.  Once this trigger is created, it will run bf-handle/execute every time an event fires on that event type that passes the filter, and then push the result into geoserver in the given layer group.
 
+Input Format:
+
+bfInputJSON	*	// this is an object.  It's format is that of the input data for the '/execute' call.
+maxx		float	// Part of bounding box.  Required.
+minx		float	// Part of bounding box.  Required.
+maxy		float	// Part of bounding box.  Required.
+miny		float	// Part of bounding box.  Required.
+cloudCover	float	// Max allowed cloud cover.  '10' would permit cloud cover of up to 10%.  Required.
+maxRes		string	// Max allowed resolution.  '30' would represent 30 meter resolution.
+minRes		string	// Min allowed resolution.  As above.
+maxDate		string	// No images taken after this date will be processed.  "yyyy-MM-dd'T'HH:mm:ssZZ" format
+minDate		string	// No images taken before this date will be processed.  Required.
+sensorName	string	// Name of the sensor producing the data - 'landsat', for example.  Intended for searching and display.
+eventTypeId	string	// Piazza Event Type ID for pzsvc-image-catalog's "new image" Event Type
+serviceId	string	// Piazza Service ID for bf-handle
+name		string	// Arbitrary name for the product line.  Intended for display
+
+Output Format:
+
+triggerId	string	// Piazza Trigger ID for the newly created trigger
+layerGroupId	string	// Layer Group ID for the associated geoserver layer group
+
+Currently, the geoserver layer group does not exist until the first image comes in through the product line.  Once it does exist, it will contain all images from the product line.
+
 ### bf-handle/getProductLines
 
+bf-handle/getProductLines allows returns a list of product lines, filtered by creator ID.
 
+Input format:
+
+eventTypeId	string	// the Piazza event type ID from pzsvc-image-catalog/eventTypeID.  Represents the "new scene" catalog event.
+serviceId	string	// the Piazza service ID for bf-handle's /execute endpoint.
+createdBy	string	// the username of the person that created this product line.  Filter.
+pzAddr		string	// the gateway URL for this Pz instance
+pzAuthToken	string	// the auth string for this Pz instance
+sortBy		string	// which output parameter to sort by 
+order		string	// whether that parameter should be sorted ascending (asc) or descending (desc) 
+
+Output format:
+productLines	*	// this is a list of JSON objects.  Those objects are in the input format for the '/newProductLines' endpoint 
 
 ### bf-handle/resultsByScene
 
