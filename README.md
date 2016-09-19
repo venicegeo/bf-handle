@@ -20,8 +20,8 @@ The primary purpose of bf-handle execute is managing image analysis services on 
 algoType      string    // API for the shoreline algorithm
 svcURL        string    // URL for the shoreline algorithm
 tideURL       string    // optional.  URL for the tide service (optional)
-metaDataJSON	Feature		// semi-optional.  Entry from Image Catalog
-metaDataURL   string		// semi-optional.  URL for the Image Catalog
+metaDataJSON  Feature   // semi-optional.  Entry from Image Catalog
+metaDataURL   string    // semi-optional.  URL for the Image Catalog
 bands         []string  // names of bands to feed into the shoreline algorithm
 pzAuthToken   string    // semi-optional.  Auth string for this Pz instance
 pzAddr        string    // gateway URL for this Pz instance
@@ -129,25 +129,25 @@ bf-handle/newProductLine creates a Beachfront Product Line.  A product line cons
 
 Input Format:
 ```
-bfInputJSON	  *	      // this is an object.  It's format is that of the input data for the '/execute' call.
-maxx		      float	  // Part of bounding box.  Required.
-minx		      float	  // Part of bounding box.  Required.
-maxy		      float	  // Part of bounding box.  Required.
-miny		      float	  // Part of bounding box.  Required.
-cloudCover	  float	  // Max allowed cloud cover.  '10' would permit cloud cover of up to 10%.  Required.
-maxRes		    string	// Max allowed resolution.  '30' would represent 30 meter resolution.
-minRes		    string	// Min allowed resolution.  As above.
-maxDate		    string	// No images taken after this date will be processed.  "yyyy-MM-dd'T'HH:mm:ssZZ" format
-minDate		    string	// No images taken before this date will be processed.  Required.
-sensorName  	string	// Name of the sensor producing the data - 'landsat', for example.  Used for search and display.
-eventTypeId	  string	// Piazza Event Type ID for pzsvc-image-catalog's "new image" Event Type
-serviceId	    string	// Piazza Service ID for bf-handle
-name		      string	// Arbitrary name for the product line.  Intended for display
+bfInputJSON   *       // this is an object.  It's format is that of the input data for the '/execute' call.
+maxx          float   // Part of bounding box.  Required.
+minx          float   // Part of bounding box.  Required.
+maxy          float   // Part of bounding box.  Required.
+miny          float   // Part of bounding box.  Required.
+cloudCover    float   // Max allowed cloud cover.  '10' would permit cloud cover of up to 10%.  Required.
+maxRes        string  // Max allowed resolution.  '30' would represent 30 meter resolution.
+minRes        string  // Min allowed resolution.  As above.
+maxDate       string  // No images taken after this date will be processed.  "yyyy-MM-dd'T'HH:mm:ssZZ" format
+minDate       string  // No images taken before this date will be processed.  Required.
+sensorName    string  // Name of the sensor producing the data - 'landsat', for example.  Used for search and display.
+eventTypeId   string  // Piazza Event Type ID for pzsvc-image-catalog's "new image" Event Type
+serviceId     string  // Piazza Service ID for bf-handle
+name          string  // Arbitrary name for the product line.  Intended for display
 ```
 Output Format:
 ```
-triggerId	    string	// Piazza Trigger ID for the newly created trigger
-layerGroupId	string	// Layer Group ID for the associated geoserver layer group
+triggerId     string  // Piazza Trigger ID for the newly created trigger
+layerGroupId  string  // Layer Group ID for the associated geoserver layer group
 ```
 Currently, the geoserver layer group does not exist until the first image comes in through the product line.  Once it does exist, it will contain all images from the product line.
 
@@ -157,17 +157,17 @@ bf-handle/getProductLines allows returns a list of product lines, filtered by cr
 
 Input format:
 ```
-eventTypeId   string	// Piazza event type ID from pzsvc-image-catalog/eventTypeID.  Indicates a newly cataloged scene.
-serviceId	    string	// Piazza service ID for bf-handle's /execute endpoint.
-createdBy	    string	// Username of the person that created this product line.  Filter.
-pzAddr		    string	// Gateway URL for this Pz instance
-pzAuthToken	  string	// Auth string for this Pz instance
-sortBy		    string	// which output parameter to sort by 
-order	      	string	// whether that parameter should be sorted ascending (asc) or descending (desc) 
+eventTypeId   string  // Piazza event type ID from pzsvc-image-catalog/eventTypeID.  Indicates a newly cataloged scene.
+serviceId     string  // Piazza service ID for bf-handle's /execute endpoint.
+createdBy     string  // Username of the person that created this product line.  Filter.
+pzAddr        string  // Gateway URL for this Pz instance
+pzAuthToken   string  // Auth string for this Pz instance
+sortBy        string  // which output parameter to sort by 
+order         string  // whether that parameter should be sorted ascending (asc) or descending (desc) 
 ```
 Output format:
 ```
-productLines	*	      // this is a list of JSON objects.  Those objects are in the input format for the '/newProductLines' endpoint 
+productLines  *       // this is a list of JSON objects, of the '/newProductLines' input format 
 ```
 
 ### bf-handle/eventTypes
@@ -180,14 +180,14 @@ The API for this endpoint is temporary.  It is likely to be modified within the 
 
 Input format:
 ```
-sceneID		    string	// the ID in pzsvc-image-catalog that references the scene used
-pzAddr		    string	// the gateway URL for this Pz instance
-pzAuthToken	  string	// the auth string for this Pz instance
+sceneID       string  // the ID in pzsvc-image-catalog that references the scene used
+pzAddr        string  // the gateway URL for this Pz instance
+pzAuthToken   string  // the auth string for this Pz instance
 ```
 
 Output format:
 ```
-dataIds		string list	// Pz dataIds.  These are the dataIds resulting from successful job calls.  The files they point to are the bf-handle /execute output strings.
+dataIds       []string  // Pz dataIds.  The files they point to are json - the bf-handle /execute output strings.
 ```
 
 ### bf-handle/resultsByProductLine
@@ -196,11 +196,11 @@ This API is temporary.  In the long term, we expect to modify it heavily, improv
 
 Input format:
 ```
-TriggerID	    string	// the ID for the trigger/Product Line.
-PerPage		    string	// the number of jobIds to list per "page"
-PageNo		    string	// the number of pages of that size to skip before beginning to list 
-PzAddr		    string	// the gateway URL for this Pz instance
-PzAuthToken	  string	// the auth string for this Pz instance
+TriggerID     string  // the ID for the trigger/Product Line.
+PerPage       string  // the number of jobIds to list per "page"
+PageNo        string  // the number of pages of that size to skip before beginning to list 
+PzAddr        string  // the gateway URL for this Pz instance
+PzAuthToken   string  // the auth string for this Pz instance
 ```
 
 Output format:
