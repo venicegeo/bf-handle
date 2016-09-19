@@ -17,17 +17,17 @@ All bf-handle inputs and outputs are json objects.  The following should be inte
 
 The primary purpose of bf-handle execute is managing image analysis services on behalf of the beachfront UI.  It accepts an input json object, reaches out to the specified services and data sources, and produces a result in the form of a geojson file uploaded to the local Piazza instance and a json response.  The format of the input is as follows:
 ```
-algoType	    string		// API for the shoreline algorithm
-svcURL		    string		// URL for the shoreline algorithm
-tideURL	    	string		// optional.  URL for the tide service (optional)
+algoType      string    // API for the shoreline algorithm
+svcURL        string    // URL for the shoreline algorithm
+tideURL       string    // optional.  URL for the tide service (optional)
 metaDataJSON	Feature		// semi-optional.  Entry from Image Catalog
-metaDataURL 	string		// semi-optional.  URL for the Image Catalog
-bands	      	string array	// names of bands to feed into the shoreline algorithm
-pzAuthToken	  string         // semi-optional.  Auth string for this Pz instance
-pzAddr		    string		// gateway URL for this Pz instance
-dbAuthToken	  string		// semi-optional.  Auth string for the image database
-lGroupId    	string		// UUID string for the target geoserver layer group
-jobName	    	string		// Arbitrary user-defined name string for resulting job
+metaDataURL   string		// semi-optional.  URL for the Image Catalog
+bands         []string  // names of bands to feed into the shoreline algorithm
+pzAuthToken   string    // semi-optional.  Auth string for this Pz instance
+pzAddr        string    // gateway URL for this Pz instance
+dbAuthToken   string    // semi-optional.  Auth string for the image database
+lGroupId      string    // UUID string for the target geoserver layer group
+jobName       string    // Arbitrary user-defined name string for resulting job
 ```
 
 A more detailed explanation for each follows:
