@@ -15,7 +15,9 @@ All bf-handle inputs and outputs are json objects.  The following should be inte
 
 ### bf-handle/execute
 
-The primary purpose of bf-handle execute is managing image analysis services on behalf of the beachfront UI.  It accepts an input json object, reaches out to the specified services and data sources, and produces a result in the form of a geojson file uploaded to the local Piazza instance and a json response.  The format of the input is as follows:
+The primary purpose of bf-handle execute is managing image analysis services on behalf of the beachfront UI.  It accepts an input json object, reaches out to the specified services and data sources, and produces a result in the form of a geojson file uploaded to the local Piazza instance and a json response.
+
+Input Format:
 ```
 algoType      string    // API for the shoreline algorithm
 svcURL        string    // URL for the shoreline algorithm
@@ -40,7 +42,7 @@ A more detailed explanation for each follows:
 
 "metaDataJSON" and "metaDataURL" are both in reference to pzsvc-image-catalog.  One or the other is required, but both would be redundant.  pzsvc-image-catalog provides geojson features in a specific format in response to an image search, each representing a particular scene.  bf-handle execute requires one such feature per run.  "metaDataJSON" expects the feature itself, while "metaDataURL" expects a URL that will return the feature in question.  pzsvc-image-catalog does serve those, if an instance is available.
 
-"bands": a comma-separated list (no spaces) of band names for the frequency ranges you want to include.  Reference only as many bands as you wish fed into the algorithm.  Band names can be drawn from the list of available bands listed in the "metaDataJSON" field.  For the moment, the preferred bands to feed into pzsvc-ossime are "coastal" and "swir1".
+"bands": a json list of band names for the frequency ranges you want to include.  Reference only as many bands as you wish fed into the algorithm.  Band names can be drawn from the list of available bands listed in the "metaDataJSON" field.  For the moment, the preferred bands to feed into pzsvc-ossime are "coastal" and "swir1".
 
 "pzAuthToken": overrides the authorization token for Piazza access.  If not provided, will default to the contents of BFH_PZ_AUTH (if any).
 
@@ -48,41 +50,32 @@ A more detailed explanation for each follows:
 
 "dbAuthToken": overrides the authorization token for external database access.  If not provided, will default to the contents of BFH_DB_AUTH (if any).
 
-"1GroupId": references Geoserver.  When provided, provisions the result geojson to geoserver and adds the resulting geoserver layer to the layer group with the given ID.  If the given ID does not currently exist as a layer group, will create a layer group with that ID and with the resulting geoserver layer as its first element.
+"lGroupId": references Geoserver.  When provided, provisions the result geojson to geoserver and adds the resulting geoserver layer to the layer group with the given ID.  If the given ID does not currently exist as a layer group, will create a layer group with that ID and with the resulting geoserver layer as its first element.
 
 "jobName": an arbitrary string.  Will be added on to job response as the property "jobName".  Primarily meant as a tool for simplifying result searches and/or UI labeling.
 
-//------
-
-bf-handle responds with a json string including the following:
-- "shoreDataID": a dataID for the S3 bucket of the piazza instance provided in "pzAddr".  That dataID will contain the geoJSON result of the algorithm call, plus a significant amount of metadata.
-
-- "shoreDeplID": a deployment ID for a layer in the geoserver instance associated with the targeted piazza instance, also containing the output data.
-
-- "geometry": provides the boundaries of the detection in geojson format.
-
-- "algoType": value copied from the input parameter of the same name.
-
-- "sceneCaptureDate": the date/time that the images for the scene were taken.
-
-- "sceneId": the ID in pzsvc-image-catalog that references the scene used.
-
-- "jobName": value copied from the input parameter of the same name.
-
-- "sensorName": the name of the source for the original scene.  Indicates things like which bands were available, the zoom level, and so forth.
-
-- "svcURL": value copied from the input parameter of the same name.
-
-- "error": describes any errors that may have occurred during processing.
+Output Format:
+```
+  shoreDataID         string  // Piazza dataId referencing the output shoreline geojson
+  shoreDeplID         string  // Piazza deploymentId referencing the output shoreline in the geoserver instance
+  geometry            *       // a geojson geometry of type "Polygon" that defines the bounding box 
+  algoType            string  // Copied from "algoType" input parameter
+  sceneCaptureDate    string  // date/time that the scene was taken.  Format example: "2015-10-17T23:52:19.292208+00:00",
+  sceneId             string  // A unique ideantifier for the scene data in pzsvc-image-catalog.
+  resultName          string  // Copied from "jobName" input parameter
+  sensorName          string  // Name of the source for the original scene
+  svcURL              string  // Copied from "svcURL" input parameter
+  error               string  // A string indicating any errors that may have arisen
+```
 
 ### bf-handle/executeBatch
 
 This endpoint is designed to support the detection of a large geographic area. It does the following:
-1. Produces a set of footprints based on the optimum scenes available (considering cloud cover, date of acquisition, and optionally the tide service)
-1. Ingests the footprints and publishes them as a WFS
-1. Executes shoreline detection on each scene
-1. Assembles the shorelines into a single product, correlating to the baseline and clipping the results to the footprints
-1. Ingests the shorelines and publishes them as a WFS
+* Produces a set of footprints based on the optimum scenes available (considering cloud cover, date of acquisition, and optionally the tide service)
+* Ingests the footprints and publishes them as a WFS
+* Executes shoreline detection on each scene
+* Assembles the shorelines into a single product, correlating to the baseline and clipping the results to the footprints
+* Ingests the shorelines and publishes them as a WFS
 
 You can execute it through a curl script like the following:
 
