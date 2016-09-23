@@ -39,6 +39,7 @@ func getMeta(dataID, pzAddr, pzAuth string, inpTide *tideOut, feature *CatFeatur
 		for key, val := range dataRes.ResMeta.Metadata {
 			attMap[key] = val
 		}
+		attMap["fileSize"] = strconv.Itoa(dataRes.DataType.Location.FileSize)
 	}
 
 	if inpTide != nil {

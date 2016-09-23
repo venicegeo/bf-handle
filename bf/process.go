@@ -312,8 +312,9 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 		if err != nil {
 			return "", nil, fmt.Errorf(`runOssim: %s`, err.Error())
 		}
-		//		hasFeatMeta = true  // Currently, Ossim does not have feature-level metadata after all.
-		// until/unless that's fixed, we need to treat them the same way we do
+		//		hasFeatMeta = true
+		// the version of OSSIM we are currently capable of using does not have feature-level
+		// metadata.  Until/unless that's fixed, we need to treat them the same way we do
 		// everyone else.
 	default:
 		return "", nil, fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
