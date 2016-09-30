@@ -68,42 +68,54 @@ type gsOutpStruct struct {
 // based on the metadata in a gsInpStruct
 func Execute(w http.ResponseWriter, r *http.Request) {
 	var (
-		byts        []byte
-		err         error
-		inpObj      gsInpStruct
-		outpObj     gsOutpStruct
-		outpFeature *genShoreOut
+		byts       []byte
+		err        error
+		httpStatus int
+		inpObj     gsInpStruct
+		outpObj    *gsOutpStruct
 	)
 
 	// clients to this function expect a JSON response
 	// containing the error message
-	handleError := func(errmsg string, status int) {
-		outpObj.Error = errmsg
+	handleOut := func(status int) {
 		byts, err = json.Marshal(outpObj)
 		if err != nil {
-			byts = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
+			byts = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + outpObj.Error + `"}`)
 		}
 		pzsvc.HTTPOut(w, string(byts), status)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	if byts, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
 		errStr := pzsvc.TraceStr("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(byts))
-		handleError(errStr, http.StatusBadRequest)
+		outpObj = &gsOutpStruct{Error: errStr}
+		handleOut(http.StatusBadRequest)
 		return
 	}
 
+	outpObj, httpStatus = processScene(&inpObj)
+	handleOut(httpStatus)
+
+}
+
+func processScene(inpObj *gsInpStruct) (*gsOutpStruct, int) {
+	var (
+		err         error
+		outpFeature *genShoreOut
+		outpObj     gsOutpStruct
+	)
+
 	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
-		errStr := pzsvc.TraceStr("Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON.")
-		handleError(errStr, http.StatusBadRequest)
-		return
+		outpObj.Error = "Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON."
+		return &outpObj, http.StatusBadRequest
 	}
 
 	if inpObj.MetaURL != "" {
 		inpObj.MetaJSON = new(CatFeature)
 		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
-			errStr := pzsvc.TraceStr("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error())
-			handleError(errStr, http.StatusBadRequest)
-			return
+			outpObj.Error = "Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error()
+			return &outpObj, http.StatusBadRequest
 		}
 	}
 
@@ -115,25 +127,24 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	if outpFeature, err = genShoreline(inpObj); err == nil {
-		outpObj.JobName = inpObj.JobName
-		outpObj.AlgoType = inpObj.AlgoType
-		outpObj.SceneID = inpObj.MetaJSON.ID
-		outpObj.SceneCapDate = inpObj.MetaJSON.Properties.AcqDate
-		outpObj.Geometry = inpObj.MetaJSON.Geometry
-		outpObj.SensorName = inpObj.MetaJSON.Properties.SensorName
-		outpObj.AlgoURL = inpObj.AlgoURL
-		outpObj.ShoreDataID = outpFeature.dataID
-		outpObj.ShoreDeplID = outpFeature.deplID
-		outpObj.ShoreFileSize = outpFeature.fileSize
-		outpObj.RGBloc = outpFeature.rgbLoc
-
-		w.Header().Set("Content-Type", "application/json")
-		byts, _ = json.Marshal(outpObj)
-		w.Write(byts)
-	} else {
-		handleError(err.Error(), http.StatusInternalServerError)
+	if outpFeature, err = genShoreline(*inpObj); err != nil {
+		outpObj.Error = "Error: genShoreline: " + err.Error()
+		return &outpObj, http.StatusInternalServerError
 	}
+
+	outpObj.JobName = inpObj.JobName
+	outpObj.AlgoType = inpObj.AlgoType
+	outpObj.SceneID = inpObj.MetaJSON.ID
+	outpObj.SceneCapDate = inpObj.MetaJSON.Properties.AcqDate
+	outpObj.Geometry = inpObj.MetaJSON.Geometry
+	outpObj.SensorName = inpObj.MetaJSON.Properties.SensorName
+	outpObj.AlgoURL = inpObj.AlgoURL
+	outpObj.ShoreDataID = outpFeature.dataID
+	outpObj.ShoreDeplID = outpFeature.deplID
+	outpObj.ShoreFileSize = outpFeature.fileSize
+	outpObj.RGBloc = outpFeature.rgbLoc
+
+	return &outpObj, http.StatusOK
 }
 
 type genShoreOut struct {
@@ -375,7 +386,7 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 
 	outStruct, err := pzsvc.CallPzsvcExec(&inpObj)
 	if err != nil {
-		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
+		return "", fmt.Errorf(`CallPzsvcExec error: %s`, err.Error())
 	}
 	return outStruct.OutFiles[geoJName], nil
 }
