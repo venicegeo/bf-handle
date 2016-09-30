@@ -50,59 +50,72 @@ type gsInpStruct struct {
 }
 
 type gsOutpStruct struct {
-	ShoreDataID  string      `json:"shoreDataID"`
-	ShoreDeplID  string      `json:"shoreDeplID"`
-	RGBloc       string      `json:"rgbLoc"`
-	Geometry     interface{} `json:"geometry"`
-	AlgoType     string      `json:"algoType"`
-	SceneCapDate string      `json:"sceneCaptureDate"`
-	SceneID      string      `json:"sceneId"`
-	JobName      string      `json:"resultName"`
-	SensorName   string      `json:"sensorName"`
-	AlgoURL      string      `json:"svcURL"`
-	Error        string      `json:"error"`
+	ShoreDataID   string      `json:"shoreDataID"`
+	ShoreDeplID   string      `json:"shoreDeplID"`
+	RGBloc        string      `json:"rgbLoc"`
+	Geometry      interface{} `json:"geometry"`
+	AlgoType      string      `json:"algoType"`
+	SceneCapDate  string      `json:"sceneCaptureDate"`
+	SceneID       string      `json:"sceneId"`
+	JobName       string      `json:"resultName"`
+	SensorName    string      `json:"sensorName"`
+	AlgoURL       string      `json:"svcURL"`
+	ShoreFileSize string      `json:"shoreFileSize"`
+	Error         string      `json:"error"`
 }
 
 // Execute executes a single shoreline detection
 // based on the metadata in a gsInpStruct
 func Execute(w http.ResponseWriter, r *http.Request) {
 	var (
-		byts        []byte
-		err         error
-		inpObj      gsInpStruct
-		outpObj     gsOutpStruct
-		outpFeature *genShoreOut
+		byts       []byte
+		err        error
+		httpStatus int
+		inpObj     gsInpStruct
+		outpObj    *gsOutpStruct
 	)
 
 	// clients to this function expect a JSON response
 	// containing the error message
-	handleError := func(errmsg string, status int) {
-		outpObj.Error = errmsg
+	handleOut := func(status int) {
 		byts, err = json.Marshal(outpObj)
 		if err != nil {
-			byts = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + errmsg + `"}`)
+			byts = []byte(`{"error":"json.Marshal error: ` + err.Error() + `", "baseError":"` + outpObj.Error + `"}`)
 		}
 		pzsvc.HTTPOut(w, string(byts), status)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	if byts, err = pzsvc.ReadBodyJSON(&inpObj, r.Body); err != nil {
 		errStr := pzsvc.TraceStr("Error: pzsvc.ReadBodyJSON: " + err.Error() + ".\nInput String: " + string(byts))
-		handleError(errStr, http.StatusBadRequest)
+		outpObj = &gsOutpStruct{Error: errStr}
+		handleOut(http.StatusBadRequest)
 		return
 	}
 
+	outpObj, httpStatus = processScene(&inpObj)
+	handleOut(httpStatus)
+
+}
+
+func processScene(inpObj *gsInpStruct) (*gsOutpStruct, int) {
+	var (
+		err         error
+		outpFeature *genShoreOut
+		outpObj     gsOutpStruct
+	)
+
 	if (inpObj.MetaURL == "") == (inpObj.MetaJSON == nil) {
-		errStr := pzsvc.TraceStr("Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON.")
-		handleError(errStr, http.StatusBadRequest)
-		return
+		outpObj.Error = "Error: Must specify one and only one of metaDataURL (" + inpObj.MetaURL + ") and metaDataJSON."
+		return &outpObj, http.StatusBadRequest
 	}
 
 	if inpObj.MetaURL != "" {
 		inpObj.MetaJSON = new(CatFeature)
 		if _, err = pzsvc.RequestKnownJSON("GET", "", inpObj.MetaURL, inpObj.PzAuth, inpObj.MetaJSON); err != nil {
-			errStr := pzsvc.TraceStr("Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error())
-			handleError(errStr, http.StatusBadRequest)
-			return
+			outpObj.Error = "Error: pzsvc.RequestKnownJSON: possible flaw in metaDataURL (" + inpObj.MetaURL + "): " + err.Error()
+			return &outpObj, http.StatusBadRequest
 		}
 	}
 
@@ -114,24 +127,24 @@ func Execute(w http.ResponseWriter, r *http.Request) {
 		inpObj.DbAuth = os.Getenv("BFH_DB_AUTH")
 	}
 
-	if outpFeature, err = genShoreline(inpObj); err == nil {
-		outpObj.JobName = inpObj.JobName
-		outpObj.AlgoType = inpObj.AlgoType
-		outpObj.SceneID = inpObj.MetaJSON.ID
-		outpObj.SceneCapDate = inpObj.MetaJSON.Properties.AcqDate
-		outpObj.Geometry = inpObj.MetaJSON.Geometry
-		outpObj.SensorName = inpObj.MetaJSON.Properties.SensorName
-		outpObj.AlgoURL = inpObj.AlgoURL
-		outpObj.ShoreDataID = outpFeature.dataID
-		outpObj.ShoreDeplID = outpFeature.deplID
-		outpObj.RGBloc = outpFeature.rgbLoc
-
-		w.Header().Set("Content-Type", "application/json")
-		byts, _ = json.Marshal(outpObj)
-		w.Write(byts)
-	} else {
-		handleError(err.Error(), http.StatusInternalServerError)
+	if outpFeature, err = genShoreline(*inpObj); err != nil {
+		outpObj.Error = "Error: genShoreline: " + err.Error()
+		return &outpObj, http.StatusInternalServerError
 	}
+
+	outpObj.JobName = inpObj.JobName
+	outpObj.AlgoType = inpObj.AlgoType
+	outpObj.SceneID = inpObj.MetaJSON.ID
+	outpObj.SceneCapDate = inpObj.MetaJSON.Properties.AcqDate
+	outpObj.Geometry = inpObj.MetaJSON.Geometry
+	outpObj.SensorName = inpObj.MetaJSON.Properties.SensorName
+	outpObj.AlgoURL = inpObj.AlgoURL
+	outpObj.ShoreDataID = outpFeature.dataID
+	outpObj.ShoreDeplID = outpFeature.deplID
+	outpObj.ShoreFileSize = outpFeature.fileSize
+	outpObj.RGBloc = outpFeature.rgbLoc
+
+	return &outpObj, http.StatusOK
 }
 
 type genShoreOut struct {
@@ -141,6 +154,7 @@ type genShoreOut struct {
 	dataID   string
 	deplID   string
 	rgbLoc   string
+	fileSize string
 }
 
 // popShoreline functions serves as an in to genShoreline for
@@ -225,7 +239,7 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 	}
 
 	fmt.Println("bf-handle: running Algo")
-	if shoreDataID, deplObj, err = runAlgo(inpObj, outTideObj, urls); err != nil {
+	if shoreDataID, deplObj, result.fileSize, err = runAlgo(inpObj, outTideObj, urls); err != nil {
 		return &result, pzsvc.TraceErr(err)
 	}
 	result.dataID = shoreDataID
@@ -294,7 +308,7 @@ func findImgURLs(inpObj gsInpStruct) ([]string, error) {
 // file.  Right now, it doesn't have any algorithms to handle other than
 // pzsvc-ossim, but as that changes the case statement is going to get
 // bigger and uglier.
-func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *pzsvc.DeplStrct, error) {
+func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *pzsvc.DeplStrct, string, error) {
 	var (
 		dataID      string
 		attMap      map[string]string
@@ -306,44 +320,47 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 	case "pzsvc-ossim":
 		attMap, err = getMeta("", "", "", inpTide, inpObj.MetaJSON)
 		if err != nil {
-			return "", nil, fmt.Errorf(`getMeta: %s`, err.Error())
+			return "", nil, "", fmt.Errorf(`getMeta: %s`, err.Error())
 		}
 		dataID, err = runOssim(inpObj.AlgoURL, inpURLs[0], inpURLs[1], inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, fmt.Errorf(`runOssim: %s`, err.Error())
+			return "", nil, "", fmt.Errorf(`runOssim: %s`, err.Error())
 		}
-		//		hasFeatMeta = true  // Currently, Ossim does not have feature-level metadata after all.
-		// until/unless that's fixed, we need to treat them the same way we do
+		//		hasFeatMeta = true
+		// the version of OSSIM we are currently capable of using does not have feature-level
+		// metadata.  Until/unless that's fixed, we need to treat them the same way we do
 		// everyone else.
 	default:
-		return "", nil, fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
+		return "", nil, "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
 	}
 
 	attMap, err = getMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, inpTide, inpObj.MetaJSON)
 	if err != nil {
-		return "", nil, fmt.Errorf(`getMeta2: %s`, err.Error())
+		return "", nil, "", fmt.Errorf(`getMeta2: %s`, err.Error())
 	}
+	fileSize := attMap["fileSize"]
+	delete(attMap, "fileSize")
 
 	if hasFeatMeta {
 		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
+			return "", nil, "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
 		}
 	} else {
 		dataID, err = addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
+			return "", nil, "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
 		}
 	}
 
 	deplObj, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth)
 	if err != nil {
-		return "", nil, fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
+		return "", nil, "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
 
 	fmt.Printf("Completed algorithm %v; %v : %v", inpObj.MetaJSON.ID, dataID, deplObj.DeplID)
 
-	return dataID, deplObj, nil
+	return dataID, deplObj, fileSize, nil
 }
 
 // runOssim does all of the things necessary to process the given images
@@ -369,7 +386,7 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 
 	outStruct, err := pzsvc.CallPzsvcExec(&inpObj)
 	if err != nil {
-		return "", fmt.Errorf(`CallPzsvcExec: %s`, err.Error())
+		return "", fmt.Errorf(`CallPzsvcExec error: %s`, err.Error())
 	}
 	return outStruct.OutFiles[geoJName], nil
 }

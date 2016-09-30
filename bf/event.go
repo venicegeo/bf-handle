@@ -39,12 +39,12 @@ type trigUIStruct struct {
 	MaxDate     string      `json:"maxDate"`
 	MinDate     string      `json:"minDate"`
 	SensorName  string      `json:"sensorName,omitempty"`
-	SpatFilter  string      `json:"spatialFilterId"`
 	EventTypeID string      `json:"eventTypeId,omitempty"`
 	ServiceID   string      `json:"serviceId,omitempty"`
 	TriggerID   string      `json:"Id,omitempty"`
-	CreatedBy   string      `json:"createdBy,omitempty"`
 	Name        string      `json:"name,omitempty"`
+	CreatedBy   string      `json:"createdBy,omitempty"`
+	//SpatFilter  string      `json:"spatialFilterId"`
 }
 
 func buildTriggerRequestJSON(trigData trigUIStruct, layerGID string) (string, error) {
@@ -352,7 +352,7 @@ func GetProductLines(w http.ResponseWriter, r *http.Request) {
 
 	b, err := pzsvc.RequestKnownJSON("GET", "", inpObj.PzAddr+`/trigger?perPage=1000&order=desc&sortBy=createdOn`, inpObj.PzAuth, &inTrigList)
 	if err != nil {
-		handleOut(w, "Error: pzsvc.ReadBodyJSON: "+err.Error()+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
+		handleOut(w, "Error: pzsvc.RequestKnownJSON: "+err.Error()+".  http Error: "+string(b), outpObj, http.StatusInternalServerError)
 		return
 	}
 
