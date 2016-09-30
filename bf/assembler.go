@@ -191,7 +191,7 @@ func detectShorelines(inpObj asInpStruct, footprints *geojson.FeatureCollection)
 		shoreDepl     *pzsvc.DeplStrct
 		gsInpObj      gsInpStruct
 		eventType     pzsvc.EventType
-		eventResponse pzsvc.Event
+		eventResponse pzsvc.EventResponse
 		b             []byte
 		ingestError   string
 	)
@@ -444,7 +444,7 @@ func addCache(imageID, shoreDataID, shoreDeplID string) {
 
 func executeBatchFailed(message string, inpObj asInpStruct) {
 	var (
-		eventResponse pzsvc.Event
+		eventResponse pzsvc.EventResponse
 		eventType     pzsvc.EventType
 		err           error
 	)
@@ -458,7 +458,7 @@ func executeBatchFailed(message string, inpObj asInpStruct) {
 		event.Data["error"] = message
 
 		if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
-			fmt.Printf("Failed to execute batch process, but posted event %v.", eventResponse.EventID)
+			fmt.Printf("Failed to execute batch process, but posted event %v.", eventResponse.Data.EventID)
 		} else {
 			log.Printf("Failed to execute batch process or post event.")
 		}

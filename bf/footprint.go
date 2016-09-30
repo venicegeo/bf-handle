@@ -448,7 +448,7 @@ func ingestFootprintsFailed(footprints string, inpObj asInpStruct) {
 	var (
 		err           error
 		eventType     pzsvc.EventType
-		eventResponse pzsvc.Event
+		eventResponse pzsvc.EventResponse
 	)
 	etm := make(map[string]interface{})
 	etm["footprints"] = "string"
@@ -460,7 +460,7 @@ func ingestFootprintsFailed(footprints string, inpObj asInpStruct) {
 		event.Data["footprints"] = footprints
 
 		if eventResponse, err = pzsvc.AddEvent(event, inpObj.PzAddr, inpObj.PzAuth); err == nil {
-			fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.EventID)
+			fmt.Printf("Failed to ingest footprints to Piazza, but posted event %v.", eventResponse.Data.EventID)
 		} else {
 			log.Printf("Failed to ingest footprints to Piazza or post event %#v\n%v", event, err.Error())
 		}
