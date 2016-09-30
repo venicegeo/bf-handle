@@ -17,7 +17,7 @@ package bf
 import (
 	"encoding/json"
 	//	"errors"
-	//  "fmt"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -149,7 +149,7 @@ func getAsynchResults(w http.ResponseWriter, jobID string) {
 //
 //
 //
-func asynchWorker() {
+func asynchWorker(name string) {
 	var (
 		jobID, inpStr, errStr string
 		err                   error
@@ -157,7 +157,9 @@ func asynchWorker() {
 		outpObj               *gsOutpStruct
 		outByts               []byte
 	)
+	fmt.Println("worker " + name + " started")
 	for {
+		fmt.Println("worker " + name + " begin cycle")
 		jobID, inpStr, err = redisTakeJob()
 		if jobID == "" {
 			if err != nil {
@@ -167,6 +169,7 @@ func asynchWorker() {
 			<-taskChan
 			continue
 		}
+		fmt.Println("worker " + name + " grabs jobID " + jobID)
 
 		err = json.Unmarshal([]byte(inpStr), inpObj)
 
@@ -200,9 +203,9 @@ func prepAsynch() {
 	taskChan = make(chan string)
 	redisClearDeadJobs()
 
-	go asynchWorker()
-	go asynchWorker()
-	go asynchWorker()
+	go asynchWorker("A")
+	go asynchWorker("B")
+	go asynchWorker("C")
 	// This is somewhat kludgy, and should be fixed later.  For the current system,
 	// three worker threads is about right.  While this does create goroutines that
 	// are not directly closable, this shouldn't be a leak issue - PrepAsynch is only
