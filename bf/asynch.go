@@ -130,6 +130,9 @@ func getAsynchStatus(w http.ResponseWriter, jobID string) {
 		statStr = `{"status":"Error","result" : {"type": "error","message": "Error while retrieving status","details": "Initial error: ` + err.Error() + `"}}`
 		pzsvc.HTTPOut(w, `{"Errors":"`+err.Error()+`", "status":"Error" }`, http.StatusInternalServerError)
 	}
+	if statStr == "Syntax error" {
+		statStr = `{"type": "error", "message": "Job not found: ` + jobID + `"}`
+	}
 	pzsvc.HTTPOut(w, statStr, http.StatusOK)
 }
 
@@ -172,6 +175,7 @@ func asynchWorker(name string) {
 		}
 		fmt.Println("worker " + name + " grabs jobID " + jobID)
 
+		inpObj = new(gsInpStruct)
 		err = json.Unmarshal([]byte(inpStr), inpObj)
 
 		outpObj, _ = processScene(inpObj)
