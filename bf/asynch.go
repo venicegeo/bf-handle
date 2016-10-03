@@ -177,18 +177,26 @@ func asynchWorker(name string) {
 
 		inpObj = new(gsInpStruct)
 		err = json.Unmarshal([]byte(inpStr), inpObj)
-
+		if err != nil {
+			errStr = `{"error":"json unmarshaling error", "details":"` + err.Error() + `"}`
+			log.Print(pzsvc.TraceStr(errStr))
+			redisErrorJob(jobID, errStr)
+			continue
+		}
 		outpObj, _ = processScene(inpObj)
 		if outpObj.Error != "" {
-			errStr = pzsvc.TraceStr(`{"error":"scene processing error", "details":"` + err.Error() + `"}`)
+			errStr = pzsvc.TraceStr(`{"error":"scene processing error", "details":"` + outpObj.Error + `"}`)
 			log.Print(errStr)
 			redisErrorJob(jobID, errStr)
+			continue
 		}
 
 		outByts, err = json.Marshal(outpObj)
 		if err != nil {
 			errStr = `{"error":"json marshaling error", "details":"` + err.Error() + `"}`
 			log.Print(pzsvc.TraceStr(errStr))
+			redisErrorJob(jobID, errStr)
+			continue
 		}
 
 		redisDoneJob(jobID, string(outByts))
