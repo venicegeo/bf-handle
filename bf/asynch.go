@@ -71,7 +71,7 @@ func HandleAsynch(w http.ResponseWriter, r *http.Request) {
 	switch pathStrs[2] {
 	case "status":
 		getAsynchStatus(w, pathStrs[3])
-	case "results":
+	case "result":
 		getAsynchResults(w, pathStrs[3])
 	default:
 		pzsvc.HTTPOut(w, `{"Errors": "Not a valid path for bf-handle asynch.",  "Given Path":"`+r.URL.Path+`"}`, http.StatusBadRequest)
@@ -237,7 +237,6 @@ const runningLoc = "bf-handle:asynchCurrentJobs:"
 //
 //
 func redisAddJob(jobID, inpObj string) error {
-	fmt.Println("Adding Job #" + jobID + ".")
 	dataObj := redisCli.Set(inpLoc+jobID, inpObj, 0)
 	if dataObj.Err() != nil {
 		return dataObj.Err()
