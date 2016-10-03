@@ -153,7 +153,7 @@ func asynchWorker(name string) {
 	var (
 		jobID, inpStr, errStr string
 		err                   error
-		inpObj                gsInpStruct
+		inpObj                *gsInpStruct
 		outpObj               *gsOutpStruct
 		outByts               []byte
 	)
@@ -174,7 +174,7 @@ func asynchWorker(name string) {
 
 		err = json.Unmarshal([]byte(inpStr), inpObj)
 
-		outpObj, _ = processScene(&inpObj)
+		outpObj, _ = processScene(inpObj)
 		if outpObj.Error != "" {
 			errStr = pzsvc.TraceStr(`{"error":"scene processing error", "details":"` + err.Error() + `"}`)
 			log.Print(errStr)
