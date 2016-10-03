@@ -162,6 +162,7 @@ func asynchWorker(name string) {
 		fmt.Println("worker " + name + " begin cycle")
 		jobID, inpStr, err = redisTakeJob()
 		if jobID == "" {
+			fmt.Println("worker " + name + " no job.  Waiting for next job.")
 			if err != nil {
 				errStr = `{"error":"database access failure", "details":"` + err.Error() + `"}`
 				log.Print(pzsvc.TraceStr(errStr))
@@ -224,6 +225,7 @@ const runningLoc = "bf-handle:asynchCurrentJobs:"
 //
 //
 func redisAddJob(jobID, inpObj string) error {
+	fmt.Println("Adding Job #" + jobID + ".")
 	dataObj := redisCli.Set(inpLoc+jobID, inpObj, 0)
 	if dataObj.Err() != nil {
 		return dataObj.Err()
@@ -246,6 +248,7 @@ func redisAddJob(jobID, inpObj string) error {
 func redisTakeJob() (string, string, error) {
 	jobObj := redisCli.RPopLPush(jobsLoc, runningLoc)
 	jobID := jobObj.Val()
+	fmt.Println("Job #" + jobID + " retrieved!")
 	if jobID == "" || jobObj.Err() == nil {
 		return "", "", jobObj.Err()
 	}
