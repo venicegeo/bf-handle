@@ -36,7 +36,7 @@ type sceneOutpStruct struct {
 	DataIDs []string `json:"dataIds"`
 }
 
-// resultsByImageId takes an imageId (as per pzsvc-image-catalog) and the necessary information
+// resultsBySceneID takes a sceneID (as per pzsvc-image-catalog) and the necessary information
 // for accessing Piazza, and returns a list of bf-handle results in the form of dataIds.
 func resultsBySceneID(sceneID, pzAddr, pzAuth string) ([]string, error) {
 
@@ -76,22 +76,3 @@ func ResultsByScene(w http.ResponseWriter, r *http.Request) {
 	handleOut(w, "", outObj, http.StatusOK)
 
 }
-
-// 4 *** struct for daterange max/min(X/Y) and other search parameters
-//    - the better this lines up with search requirements for the Image Service, the better.
-//    - correction: there's no good reason to define this here.  We should jsut use whatever
-//      they use for image catalog.
-//    - currently, they use a series of form fields, rather than an input Json.  Given that and
-//      a few other details of implementation, would probably be worthwhile to refactor as part
-//      of implementing this
-//      - be sure to discuss with Jeff first.  Would not do to be rude.
-//    - alternate version: some way of adding a "has been processed" filter to the image catalog
-//      - would want to be handled on the fly - records might be lost or imagecatalog might be
-//        moved or some such
-//      - On the flip side, pagination with an erratic filter is a *hassle*.  Basically the only
-//        way around that without depaginating and then repaginating (ugh) would be to have the
-//        filter be part of the searchable data (which, honestly, would also save time)
-
-// 3 *** function for taking a triggerID and returning a list of job outptus goes here (probably)
-
-// 6 *** function for taking a set of search params (see #5) and returning a list of job outputs goes here.

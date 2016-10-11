@@ -21,7 +21,7 @@ import (
 )
 
 // rgbGen is designed to work as a subthread function.  It takes in
-// a basic input object, proviions appropriate files out of the band
+// a basic input object, provisions appropriate files out of the band
 // information, and applies some manner of bandmerge to them (currently
 // only pzsvc-ossim is available).  The results get pushed back through
 // the given channel.

@@ -358,7 +358,7 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 		return "", nil, "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
 	}
 
-	fmt.Printf("Completed algorithm %v; %v : %v", inpObj.MetaJSON.ID, dataID, deplObj.DeplID)
+	fmt.Printf("Completed algorithm %v; %v : %v\n", inpObj.MetaJSON.ID, dataID, deplObj.DeplID)
 
 	return dataID, deplObj, fileSize, nil
 }

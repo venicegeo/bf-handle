@@ -214,7 +214,7 @@ func prepAsynch() {
 	}
 
 	taskChan = make(chan string)
-	redisClearDeadJobs()
+	redisCloseDeadJobs()
 
 	go asynchWorker("A")
 	go asynchWorker("B")
@@ -306,10 +306,23 @@ func redisGetResults(jobID string) (string, error) {
 	return resultObj.Val(), resultObj.Err()
 }
 
-// redisClearDeadJobs
+// redisClearJob cleans out the record of a job that is
+// done processing.  It is primarily intended to let
+// test code clean up after itself.  If called on a
+// job that has no record, it does nothing.  If called
+// on a job that is in progress, it will clear the
+// status briefly, but be overwritten by the running
+// job on completion.
+func redisClearJob(jobID string) [2]error {
+	statResObj := redisCli.Set(statusLoc+jobID, "", 0)
+	outpResObj := redisCli.Set(outpLoc+jobID, "", 0)
+	return [2]error{statResObj.Err(), outpResObj.Err()}
+}
+
+// redisCloseDeadJobs
 // Does not need to worry about thread-safety. This should only
 // ever be called on startup, when there are no other threads to interfere
-func redisClearDeadJobs() {
+func redisCloseDeadJobs() {
 	errMsg := `{"status":"Error", "result" : {"type": "error","message": "crash-interrupt","details": "bf-handle crashed while processing and was rebooted."}}`
 	for jobID := redisCli.RPop(runningLoc).Val(); jobID != ""; jobID = redisCli.RPop(runningLoc).Val() {
 		redisCli.Set(statusLoc+jobID, errMsg, 0)
