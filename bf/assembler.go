@@ -159,7 +159,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 			// on previous collection operations so re-retrieve from the catalog
 			var newFootprint *geojson.Feature
 			for inx, footprint := range footprints.Features {
-				if newFootprint, err = catalog.GetImageMetadata(footprint.ID); err == nil {
+				if newFootprint, err = catalog.GetSceneMetadata(footprint.ID); err == nil {
 					footprints.Features[inx] = newFootprint
 				} else {
 					log.Printf("Failed to retrieve image %v from catalog.", footprint.ID)
@@ -429,7 +429,7 @@ func addCache(imageID, shoreDataID, shoreDeplID string) {
 		err     error
 	)
 	// Get a clean copy of the image metadata
-	if feature, err = catalog.GetImageMetadata(imageID); err != nil {
+	if feature, err = catalog.GetSceneMetadata(imageID); err != nil {
 		log.Printf(pzsvc.TraceStr("Failed to retrieve image metadata so that we could cache results: " + err.Error()))
 	}
 
