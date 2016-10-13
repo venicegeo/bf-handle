@@ -159,7 +159,7 @@ func ExecuteBatch(w http.ResponseWriter, r *http.Request) {
 			// on previous collection operations so re-retrieve from the catalog
 			var newFootprint *geojson.Feature
 			for inx, footprint := range footprints.Features {
-				if newFootprint, err = catalog.GetSceneMetadata(footprint.ID); err == nil {
+				if newFootprint, err = catalog.GetSceneMetadata(footprint.IDStr()); err == nil {
 					footprints.Features[inx] = newFootprint
 				} else {
 					log.Printf("Failed to retrieve image %v from catalog.", footprint.ID)
@@ -214,7 +214,7 @@ func detectShorelines(inpObj asInpStruct, footprints *geojson.FeatureCollection)
 				shoreDataID = gen.PropertyString("shoreDataID")
 				shoreDeplID = gen.PropertyString("shoreDeplID")
 				fmt.Printf("Finished detecting feature %v. Data ID: %v", footprint.ID, shoreDataID)
-				go addCache(footprint.ID, shoreDataID, shoreDeplID)
+				go addCache(footprint.IDStr(), shoreDataID, shoreDeplID)
 				debug.FreeOSMemory()
 			}
 		} else {
@@ -405,7 +405,7 @@ func findBestMatches(fc *geojson.FeatureCollection, comparison, clip *geos.Geome
 		} else if intersects {
 			// Need to clip each found geometry to its collection geometry
 			if intersectGeom, err = currGeom.Intersection(clip); err != nil {
-				log.Printf(pzsvc.TraceStr("Failed to clip the found geometry for %v " + feature.ID + ": " + err.Error()))
+				log.Printf(pzsvc.TraceStr("Failed to clip the found geometry for %v " + feature.IDStr() + ": " + err.Error()))
 				// log.Printf("clip: %v", clip.String())
 				// log.Printf("currGeom: %v", currGeom.String())
 				continue

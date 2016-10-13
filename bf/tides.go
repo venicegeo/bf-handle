@@ -75,7 +75,7 @@ func toTidesIn(features []*geojson.Feature) *tidesIn {
 	for _, feature := range features {
 		if feature.PropertyFloat("CurrentTide") != math.NaN() {
 			if currTideIn = findTide(feature.Bbox, feature.PropertyString("acquiredDate")); currTideIn == nil {
-				log.Print(pzsvc.TraceStr(`Could not get tide information from feature ` + feature.ID + ` because required elements did not exist.`))
+				log.Print(pzsvc.TraceStr(`Could not get tide information from feature ` + feature.IDStr() + ` because required elements did not exist.`))
 				continue
 			}
 			result.Locations = append(result.Locations, *currTideIn)
@@ -96,7 +96,7 @@ func updateSceneTide(scene *geojson.Feature, inpObj tideOut) {
 	properties["24hrMinTide"] = inpObj.MinTide
 	properties["24hrMaxTide"] = inpObj.MaxTide
 
-	if err := catalog.SaveFeatureProperties(scene.ID, properties); err != nil {
-		log.Print(pzsvc.TraceStr("Failed to update feature " + scene.ID + " with tide information: " + err.Error()))
+	if err := catalog.SaveFeatureProperties(scene.IDStr(), properties); err != nil {
+		log.Print(pzsvc.TraceStr("Failed to update feature " + scene.IDStr() + " with tide information: " + err.Error()))
 	}
 }
