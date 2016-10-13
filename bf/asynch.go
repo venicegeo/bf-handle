@@ -208,9 +208,11 @@ func asynchWorker(name string) {
 func prepAsynch() {
 	var err error
 
-	redisCli, err = catalog.RedisClient()
-	if err != nil {
-		log.Println("Failure in Redis call.  Error: " + pzsvc.TraceStr(err.Error()))
+	if redisCli == nil {
+		redisCli, err = catalog.RedisClient()
+		if err != nil {
+			log.Println("Failure in Redis call.  Error: " + pzsvc.TraceStr(err.Error()))
+		}
 	}
 
 	taskChan = make(chan string)

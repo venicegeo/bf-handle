@@ -15,7 +15,6 @@
 package bf
 
 import (
-	"encoding/json"
 	"log"
 	"math"
 	"time"
@@ -67,10 +66,6 @@ func findTide(bbox geojson.BoundingBox, timeStr string) *tideIn {
 	return &tideIn{Lat: center.Coordinates[1], Lon: center.Coordinates[0], Dtg: dtgTime.Format("2006-01-02-15-04")}
 }
 
-func toTideIn(feature *geojson.Feature) *tideIn {
-	return findTide(feature.Bbox, feature.PropertyString("acquiredDate"))
-}
-
 func toTidesIn(features []*geojson.Feature) *tidesIn {
 	var (
 		result     tidesIn
@@ -79,7 +74,7 @@ func toTidesIn(features []*geojson.Feature) *tidesIn {
 	result.Map = make(map[string]*geojson.Feature)
 	for _, feature := range features {
 		if feature.PropertyFloat("CurrentTide") != math.NaN() {
-			if currTideIn = toTideIn(feature); currTideIn == nil {
+			if currTideIn = findTide(feature.Bbox, feature.PropertyString("acquiredDate")); currTideIn == nil {
 				log.Print(pzsvc.TraceStr(`Could not get tide information from feature ` + feature.ID + ` because required elements did not exist.`))
 				continue
 			}
@@ -93,33 +88,6 @@ func toTidesIn(features []*geojson.Feature) *tidesIn {
 	default:
 		return &result
 	}
-}
-
-func getTide(inpObj tideIn, tideAddr string) (*tideOut, error) {
-	var outpObj tideOut
-	byts, err := json.Marshal(inpObj)
-	if err != nil {
-		return nil, pzsvc.TraceErr(err)
-	}
-	_, err = pzsvc.RequestKnownJSON("POST", string(byts), tideAddr, "", &outpObj)
-	if err != nil {
-		return nil, pzsvc.TraceErr(err)
-	}
-	return &outpObj, nil
-}
-
-func getTides(inpObj tidesIn, tideAddr string) (*tidesOut, error) {
-	var (
-		outpObj tidesOut
-	)
-	bytes, err := json.Marshal(inpObj)
-	if err != nil {
-		return nil, pzsvc.TraceErr(err)
-	}
-	if _, err = pzsvc.RequestKnownJSON("POST", string(bytes), tideAddr, "", &outpObj); err != nil {
-		return nil, pzsvc.TraceErr(err)
-	}
-	return &outpObj, nil
 }
 
 func updateSceneTide(scene *geojson.Feature, inpObj tideOut) {

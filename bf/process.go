@@ -225,7 +225,7 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 		// example, if the scene is in the middle of the ocean).
 		// Thus, if we get an error from this, we simply continue
 		// without the tide data.
-		if outTideObj, err = getTide(*inTideObj, inpObj.TideURL); err == nil {
+		if _, err = pzsvc.ReqByObjJSON("POST", inpObj.TideURL, "", inTideObj, outTideObj); err == nil {
 			result.minTide = outTideObj.MinTide
 			result.maxTide = outTideObj.MaxTide
 			result.currTide = outTideObj.CurrTide

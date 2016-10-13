@@ -340,7 +340,8 @@ func getBestScene(point *geos.Geometry, inpObj *asInpStruct) *geojson.Feature {
 	if inpObj != nil && inpObj.TidesAddr != "" {
 		if tidesInObj = toTidesIn(sceneDescriptors.Scenes.Features); tidesInObj != nil {
 			fmt.Print("\nLoading tide information.")
-			if tidesOutObj, err = getTides(*tidesInObj, inpObj.TidesAddr); err == nil {
+
+			if _, err = pzsvc.ReqByObjJSON("POST", inpObj.TidesAddr, "", tidesInObj, tidesOutObj); err == nil {
 				// Loop 1: Add the tide information to each image
 				for _, tideObj := range tidesOutObj.Locations {
 					currentScene = tidesInObj.Map[tideObj.Dtg]
