@@ -17,6 +17,7 @@ package bf
 import (
 	"fmt"
 
+	"github.com/venicegeo/pzsvc-exec/pzse"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -29,7 +30,7 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 	var (
 		err       error
 		fileID    string
-		outStruct *pzsvc.ExecOut
+		outStruct *pzse.OutStruct
 	)
 
 	switch inpObj.BndMrgType {
@@ -40,14 +41,14 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 		funcStr := fmt.Sprintf(`bandmerge --output-radiometry U8 --red red.TIF --green green.TIF --blue blue.TIF %s`,
 			outFName)
 
-		execObj := pzsvc.ExecIn{FuncStr: funcStr,
-			InExtURLs:  []string{0: bands["red"], 1: bands["green"], 2: bands["blue"]},
+		execObj := pzse.InpStruct{Command: funcStr,
+			InExtFiles: []string{0: bands["red"], 1: bands["green"], 2: bands["blue"]},
 			InExtNames: []string{0: "red.TIF", 1: "green.TIF", 2: "blue.TIF"},
-			OutGeoTIFF: []string{0: outFName},
-			AlgoURL:    inpObj.BndMrgURL,
-			AuthKey:    inpObj.PzAuth}
+			OutTiffs:   []string{0: outFName},
+			OutTxts:    nil,
+			PzAuth:     inpObj.PzAuth}
 
-		outStruct, err = pzsvc.CallPzsvcExec(&execObj)
+		outStruct, err = pzse.CallPzsvcExec(&execObj, inpObj.BndMrgURL)
 		if err != nil {
 			rgbChan <- fmt.Sprintf(`Error: CallPzsvcExec: %s`, err.Error())
 			return

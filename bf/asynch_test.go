@@ -20,7 +20,7 @@ import (
 	//"fmt"
 	//"io/ioutil"
 	//"log"
-	"net/http"
+	//"net/http"
 	//	"os"
 	//	"strconv"
 	//"strings"
@@ -38,10 +38,10 @@ we build another interface workaround.
 
 */
 
-func TestHandleAsynch(w http.ResponseWriter, r *http.Request) {}
+func TestHandleAsynch(t *testing.T) {}
 
 func TestAddAsynchJob(t *testing.T) {}
 
 func TestGetAsynchStatus(t *testing.T) {}
 
-func TestGetAsynchResults(w http.ResponseWriter, jobID string) {}
+func TestGetAsynchResults(t *testing.T) {}

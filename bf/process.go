@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-exec/pzse"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -205,7 +206,7 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 		shoreDataID string
 		deplObj     *pzsvc.DeplStrct
 		inTideObj   *tideIn
-		outTideObj  *tideOut
+		outTideObj  = new(tideOut)
 	)
 
 	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
@@ -230,7 +231,7 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 			result.maxTide = outTideObj.MaxTide
 			result.currTide = outTideObj.CurrTide
 		} else {
-			fmt.Printf("Skipping tide information for %v: %v", inpObj.MetaJSON.ID, err.Error())
+			fmt.Printf(pzsvc.TraceStr("Skipping tide information for" + inpObj.MetaJSON.ID + ":" + err.Error()))
 		}
 	}
 
@@ -375,16 +376,15 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 	}
 	funcStr = funcStr + geoJName
 
-	inpObj := pzsvc.ExecIn{FuncStr: funcStr,
-		InExtURLs:  []string{0: imgURL1, 1: imgURL2},
+	inpObj := pzse.InpStruct{Command: funcStr,
+		InExtFiles: []string{0: imgURL1, 1: imgURL2},
 		InExtNames: []string{0: "img1.TIF", 1: "img2.TIF"},
-		OutGeoJSON: []string{0: geoJName},
-		OutGeoTIFF: nil,
-		OutTxt:     nil,
-		AlgoURL:    algoURL,
-		AuthKey:    authKey}
+		OutGeoJs:   []string{0: geoJName},
+		OutTiffs:   nil,
+		OutTxts:    nil,
+		PzAuth:     authKey}
 
-	outStruct, err := pzsvc.CallPzsvcExec(&inpObj)
+	outStruct, err := pzse.CallPzsvcExec(&inpObj, algoURL)
 	if err != nil {
 		return "", fmt.Errorf(`CallPzsvcExec error: %s`, err.Error())
 	}
