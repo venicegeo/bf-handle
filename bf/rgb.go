@@ -14,6 +14,7 @@
 
 package bf
 
+/*
 import (
 	"fmt"
 
@@ -72,3 +73,4 @@ func rgbGen(inpObj gsInpStruct, rgbChan chan string) {
 	rgbChan <- outpObj.Layer
 	return
 }
+*/

@@ -16,7 +16,6 @@ package bf
 
 import (
 	"encoding/json"
-	"errors"
 	"strconv"
 
 	"github.com/venicegeo/geojson-go/geojson"
@@ -72,7 +71,7 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 	var obj geojson.FeatureCollection
 	err = json.Unmarshal(b, &obj)
 	if err != nil {
-		return "", errors.New("metadata.go:65: " + err.Error() + ".  input json: " + string(b))
+		return "", pzsvc.ErrWithTrace(err.Error() + ".  input json: " + string(b))
 	}
 
 	for _, feat := range obj.Features {
@@ -83,7 +82,7 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 
 	b2, err := json.Marshal(obj)
 	if err != nil {
-		return "", errors.New("metadata.go:76" + err.Error() + ".  input json: " + string(b2))
+		return "", pzsvc.ErrWithTrace(err.Error() + ".  input json: " + string(b2))
 	}
 
 	fName := props["sourceID"] + ".geojson"
@@ -92,5 +91,5 @@ func addGeoFeatureMeta(dataID, pzAddr, pzAuth string, props map[string]string) (
 
 	dataID, err = pzsvc.Ingest(fName, "geojson", pzAddr, source, version, pzAuth, b2, props)
 
-	return dataID, err
+	return dataID, pzsvc.TraceErr(err)
 }

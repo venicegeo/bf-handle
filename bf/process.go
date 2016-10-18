@@ -16,7 +16,7 @@ package bf
 
 import (
 	"encoding/json"
-	"errors"
+	//"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -199,8 +199,8 @@ func popShoreline(inpObj gsInpStruct, inFeat *geojson.Feature) (*geojson.Feature
 // processes raster images into geojson.
 func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 	var (
-		result      genShoreOut
-		rgbChan     chan string
+		result genShoreOut
+		//		rgbChan     chan string
 		err         error
 		urls        []string
 		shoreDataID string
@@ -209,10 +209,12 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 		outTideObj  = new(tideOut)
 	)
 
-	if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
-		rgbChan = make(chan string)
-		go rgbGen(inpObj, rgbChan)
-	}
+	// rgbGen is no longer in use, and its usage is likely to change if/when it returns.
+	/*
+		if inpObj.BndMrgType != "" && inpObj.BndMrgURL != "" {
+			rgbChan = make(chan string)
+			go rgbGen(inpObj, rgbChan)
+		}*/
 
 	if inpObj.TideURL != "" {
 		if inTideObj = findTide(inpObj.MetaJSON.BBox, inpObj.MetaJSON.Properties.AcqDate); inTideObj == nil {
@@ -245,15 +247,15 @@ func genShoreline(inpObj gsInpStruct) (*genShoreOut, error) {
 	}
 	result.dataID = shoreDataID
 	result.deplID = deplObj.DeplID
-
-	if rgbChan != nil {
-		fmt.Println("waiting for rgb")
-		rgbLoc := <-rgbChan // returns the Geoserver Layer
-		if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
-			return &result, errors.New(rgbLoc)
-		}
-		result.rgbLoc = rgbLoc
-	}
+	/*
+		if rgbChan != nil {
+			fmt.Println("waiting for rgb")
+			rgbLoc := <-rgbChan // returns the Geoserver Layer
+			if len(rgbLoc) > 7 && rgbLoc[0:6] == "Error:" {
+				return &result, errors.New(rgbLoc)
+			}
+			result.rgbLoc = rgbLoc
+		}*/
 
 	return &result, nil
 }
@@ -321,23 +323,23 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 	case "pzsvc-ossim":
 		attMap, err = getMeta("", "", "", inpTide, inpObj.MetaJSON)
 		if err != nil {
-			return "", nil, "", fmt.Errorf(`getMeta: %s`, err.Error())
+			return "", nil, "", pzsvc.TraceErr(err)
 		}
 		dataID, err = runOssim(inpObj.AlgoURL, inpURLs[0], inpURLs[1], inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, "", fmt.Errorf(`runOssim: %s`, err.Error())
+			return "", nil, "", pzsvc.TraceErr(err)
 		}
 		//		hasFeatMeta = true
 		// the version of OSSIM we are currently capable of using does not have feature-level
 		// metadata.  Until/unless that's fixed, we need to treat them the same way we do
 		// everyone else.
 	default:
-		return "", nil, "", fmt.Errorf(`bf-handle error: algorithm type "%s" not defined`, inpObj.AlgoType)
+		return "", nil, "", pzsvc.ErrWithTrace(`bf-handle error: algorithm type "` + inpObj.AlgoType + `" not defined`)
 	}
 
 	attMap, err = getMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, inpTide, inpObj.MetaJSON)
 	if err != nil {
-		return "", nil, "", fmt.Errorf(`getMeta2: %s`, err.Error())
+		return "", nil, "", pzsvc.TraceErr(err)
 	}
 	fileSize := attMap["fileSize"]
 	delete(attMap, "fileSize")
@@ -345,18 +347,18 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 	if hasFeatMeta {
 		err = pzsvc.UpdateFileMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, "", fmt.Errorf(`pzsvc.UpdateFileMeta: %s`, err.Error())
+			return "", nil, "", pzsvc.TraceErr(err)
 		}
 	} else {
 		dataID, err = addGeoFeatureMeta(dataID, inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
-			return "", nil, "", fmt.Errorf(`addGeoFeatureMeta: %s`, err.Error())
+			return "", nil, "", pzsvc.TraceErr(err)
 		}
 	}
 
 	deplObj, err = pzsvc.DeployToGeoServer(dataID, inpObj.LGroupID, inpObj.PzAddr, inpObj.PzAuth)
 	if err != nil {
-		return "", nil, "", fmt.Errorf(`pzsvc.DeployToGeoServer: %s`, err.Error())
+		return "", nil, "", pzsvc.TraceErr(err)
 	}
 
 	fmt.Printf("Completed algorithm %v; %v : %v\n", inpObj.MetaJSON.ID, dataID, deplObj.DeplID)
@@ -386,7 +388,7 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 
 	outStruct, err := pzse.CallPzsvcExec(&inpObj, algoURL)
 	if err != nil {
-		return "", fmt.Errorf(`CallPzsvcExec error: %s`, err.Error())
+		return "", pzsvc.TraceErr(err)
 	}
 	return outStruct.OutFiles[geoJName], nil
 }
