@@ -374,9 +374,11 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 
 	funcStr := `shoreline --image img1.TIF,img2.TIF --projection geo-scaled `
 	for key, val := range attMap {
+		fmt.Println("adding props to shoreline call: key: " + key + "value: " + val)
 		funcStr = funcStr + fmt.Sprintf(`--prop %s:%s `, key, val)
 	}
 	funcStr = funcStr + geoJName
+	fmt.Println("final funcStr: " + funcStr)
 
 	inpObj := pzse.InpStruct{Command: funcStr,
 		InExtFiles: []string{0: imgURL1, 1: imgURL2},
