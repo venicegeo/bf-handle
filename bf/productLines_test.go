@@ -85,14 +85,6 @@ Rough plan:
 - send it through TestNewProductLine
 - build a full get product lines call from postman data.
 - send it through GetProductLines
-
-
-New Product Line:
-{"bfInputJson": {"algoType":"pzsvc-ossim","svcURL":"https://pzsvc-ossim.io/execute","pzAuthToken":"aaa","pzAddr":"https://pz-gateway.io","dbAuthToken":"aaaa","tideURL":"https://tideprediction.io/","bands":["coastal","swir1"],"metaDataURL":""},"cloudCover":10,"minDate":"2016-08-29","minx":0,"miny":0,"maxx":30,"maxy":30,"eventTypeId":"bbbbb","serviceId":"ccccc","name":"bf-handle test trigger"}
-
-Get product lines:
-{"eventTypeId":"bbbb","serviceId":"","createdBy":"","pzAuthToken":"aaa","pzAddr":"https://pz-gateway.io"}
-
 be careful about the intermediary calls.  Some could get... messy.
 
 
