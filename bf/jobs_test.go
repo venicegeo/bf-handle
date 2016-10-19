@@ -42,8 +42,6 @@ func TestResultsByScene(t *testing.T) {
 
 	r.Body = pzsvc.GetMockReadCloser(testBodyStr)
 
-	// create and populate mock client here.
-
 	cliOuts := []string{}
 
 	pzsvc.SetMockClient(cliOuts, 200)
@@ -53,7 +51,3 @@ func TestResultsByScene(t *testing.T) {
 		t.Error(`TestResultsByScene: failed on what should have been a good run.  Error: ` + *outStr)
 	}
 }
-
-/*
-{"imageId":"landsat:LC81130812016183LGN00","pzAuthToken":"aaaa","pzAddr":"https://pz-gateway.io"}
-*/

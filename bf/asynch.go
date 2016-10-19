@@ -131,7 +131,7 @@ func getAsynchStatus(w http.ResponseWriter, jobID string) {
 		pzsvc.HTTPOut(w, `{"Errors":"`+err.Error()+`", "status":"Error" }`, http.StatusInternalServerError)
 	}
 	if statStr == "Syntax error" {
-		statStr = `{"type": "error", "message": "Job not found: ` + jobID + `"}`
+		pzsvc.HTTPOut(w, `{"status":"Error","result" : {"type": "error", "message": "Job not found: `+jobID+`"}}`, http.StatusBadRequest)
 	}
 	pzsvc.HTTPOut(w, statStr, http.StatusOK)
 }
