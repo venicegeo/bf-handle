@@ -325,7 +325,7 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 		if err != nil {
 			return "", nil, "", pzsvc.TraceErr(err)
 		}
-		dataID, err = runOssim(inpObj.AlgoURL, inpURLs[0], inpURLs[1], inpObj.PzAuth, attMap)
+		dataID, err = runOssim(inpObj.AlgoURL, inpURLs[0], inpURLs[1], inpObj.PzAddr, inpObj.PzAuth, attMap)
 		if err != nil {
 			return "", nil, "", pzsvc.TraceErr(err)
 		}
@@ -369,7 +369,7 @@ func runAlgo(inpObj gsInpStruct, inpTide *tideOut, inpURLs []string) (string, *p
 // runOssim does all of the things necessary to process the given images
 // through pzsvc-ossim.  It constructs and executes the request, reads
 // the response, and extracts the dataID of the output from it.
-func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]string) (string, error) {
+func runOssim(algoURL, imgURL1, imgURL2, pzAddr, authKey string, attMap map[string]string) (string, error) {
 	geoJName := `shoreline.geojson`
 
 	funcStr := `shoreline --image img1.TIF,img2.TIF --projection geo-scaled `
@@ -386,7 +386,8 @@ func runOssim(algoURL, imgURL1, imgURL2, authKey string, attMap map[string]strin
 		OutGeoJs:   []string{0: geoJName},
 		OutTiffs:   nil,
 		OutTxts:    nil,
-		PzAuth:     authKey}
+		PzAuth:     authKey,
+		PzAddr:     pzAddr}
 
 	outStruct, err := pzse.CallPzsvcExec(&inpObj, algoURL)
 	if err != nil {
