@@ -127,11 +127,13 @@ func addAsynchJob(w http.ResponseWriter, r *http.Request) {
 func getAsynchStatus(w http.ResponseWriter, jobID string) {
 	statStr, err := redisGetStatus(jobID)
 	if err != nil {
-		statStr = `{"status":"Error","result" : {"type": "error","message": "Error while retrieving status","details": "Initial error: ` + err.Error() + `"}}`
-		pzsvc.HTTPOut(w, `{"Errors":"`+err.Error()+`", "status":"Error" }`, http.StatusInternalServerError)
+		errStr := `{"status":"Error","result" : {"type": "error","message": "Error while retrieving status","details": "Initial error: ` + err.Error() + `"}}`
+		pzsvc.HTTPOut(w, errStr, http.StatusInternalServerError)
+		return
 	}
 	if statStr == "Syntax error" {
-		statStr = `{"type": "error", "message": "Job not found: ` + jobID + `"}`
+		pzsvc.HTTPOut(w, `{"status":"Error","result" : {"type": "error", "message": "Job not found: `+jobID+`"}}`, http.StatusBadRequest)
+		return
 	}
 	pzsvc.HTTPOut(w, statStr, http.StatusOK)
 }
