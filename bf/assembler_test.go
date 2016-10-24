@@ -15,14 +15,10 @@
 package bf
 
 import (
-	"encoding/json"
-	//	"errors"
-	//  "fmt"
-	"net/http"
-	//	"os"
-	//	"strconv"
+	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-lib"
+	"net/http"
 	"testing"
 )
 
