@@ -172,7 +172,7 @@ func TestAddAsynchJob(t *testing.T) {
 		redisConvStatus("Pending")}
 	redisCli = makeMockRedisCli(outputs)
 	taskChan = make(chan string)
-	w, outStr, outInt := pzsvc.GetMockResponseWriter()
+	w, _, outInt := pzsvc.GetMockResponseWriter()
 	r := http.Request{}
 	r.Method = "POST"
 	r.Body = pzsvc.GetMockReadCloser(`string goes here`)
@@ -192,7 +192,7 @@ func TestGetAsynchStatus(t *testing.T) {
 		redisConvStatus("Syntax Error"),
 		redisConvStatus("Pending")}
 	redisCli = makeMockRedisCli(outputs)
-	w, outStr, outInt := pzsvc.GetMockResponseWriter()
+	w, _, outInt := pzsvc.GetMockResponseWriter()
 	r := http.Request{}
 	r.Method = "POST"
 	r.Body = pzsvc.GetMockReadCloser(`string goes here`)
