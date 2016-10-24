@@ -29,9 +29,6 @@ func TestAssembleShorelines(t *testing.T) {
 	r.Method = "POST"
 	r.Body = pzsvc.GetMockReadCloser(`{"name":what?}`)
 	Execute(w, &r)
-	if *outInt < 300 && *outInt >= 200 {
-		t.Error(`TestExecute: passed on what should have been a json failure.`)
-	}
 	*outStr = ""
 	*outInt = 200
 	AssembleShorelines(w, &r)
