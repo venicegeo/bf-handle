@@ -79,13 +79,41 @@ func TestGetProductLines(t *testing.T) {
 	}
 }
 
-/*
-Rough plan:
-- put together a full product line creation call from postman data.
-- send it through TestNewProductLine
-- build a full get product lines call from postman data.
-- send it through GetProductLines
-be careful about the intermediary calls.  Some could get... messy.
+func TestExtractTrigReqStruct(t *testing.T) {
 
+	var triggerHolder pzsvc.Trigger
 
-*/
+	triggerHolder.Name = "triggerName"
+	triggerHolder.Enabled = true
+	triggerHolder.EventTypeID = "single"
+	triggerHolder.CreatedBy = "me"
+	triggerHolder.CreatedOn = "1/1/2016"
+	triggerHolder.TriggerID = "123"
+
+	_, _ = extractTrigReqStruct(triggerHolder)
+}
+func TestToString(t *testing.T) {
+	var floatHolder float64
+	var intHolder int
+	var stringHolder string
+
+	floatHolder = 1.234
+	intHolder = 1
+	stringHolder = "1"
+	toString(floatHolder)
+	toString(intHolder)
+	toString(stringHolder)
+}
+
+func TestToFloat(t *testing.T) {
+	var floatHolder float64
+	var intHolder int
+	var stringHolder string
+
+	floatHolder = 1.234
+	intHolder = 1
+	stringHolder = "1.234"
+	toFloat(floatHolder)
+	toFloat(intHolder)
+	toFloat(stringHolder)
+}
