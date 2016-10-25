@@ -160,7 +160,7 @@ func TestExecuteBatch(t *testing.T) {
 func TestForassembleShorelines(t *testing.T) {
 	var asInpStrucHolder asInpStruct
 	var geoCollectionHolder *geojson.FeatureCollection
-	var mapHolder geojson.Map
+	var mapHolder map[string]interface{}
 
 	var bandsHolder []string
 
