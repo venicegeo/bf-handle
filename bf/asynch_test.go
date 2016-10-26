@@ -75,8 +75,11 @@ func (ma mockAddr) String() string {
 }
 
 type mockConn struct {
-	readCount int
+	readCount *int
 }
+
+var mockConnCount int
+var mockConnInst = mockConn{readCount: &mockConnCount}
 
 /*
 now we need a series of functions that will populate the
@@ -99,9 +102,10 @@ Read port of the net.Conn from teh Dialer in the options.
 */
 
 func (mCn mockConn) Read(b []byte) (n int, err error) {
-	if mCn.readCount < len(mockConnOutpBytes) {
-		copy(mockConnOutpBytes[mCn.readCount], b)
-		mCn.readCount = mCn.readCount + 1
+	fmt.Printf("reading: %d of %d.\n", *mCn.readCount, len(mockConnOutpBytes))
+	if *mCn.readCount < len(mockConnOutpBytes) {
+		copy(b, mockConnOutpBytes[*mCn.readCount])
+		*mCn.readCount = *mCn.readCount + 1
 	}
 	return len(b), nil
 }
@@ -136,7 +140,7 @@ func (mCn mockConn) SetWriteDeadline(t time.Time) error {
 
 func MockDialer() (net.Conn, error) {
 	//build correct net.Conn here.
-	return mockConn{}, nil
+	return mockConnInst, nil
 }
 
 func makeMockRedisCli(outputs []string) *redis.Client {
@@ -165,6 +169,7 @@ func redisConvErrStr(val string) string {
 func TestHandleAsynch(t *testing.T) {}
 
 func TestAddAsynchJob(t *testing.T) {
+	mockConnCount = 0
 	outputs := []string{
 		redisConvErrStr("Error: totally an error."),
 		redisConvStatus("Pending"),
@@ -175,34 +180,37 @@ func TestAddAsynchJob(t *testing.T) {
 	w, _, outInt := pzsvc.GetMockResponseWriter()
 	r := http.Request{}
 	r.Method = "POST"
-	r.Body = pzsvc.GetMockReadCloser(`string goes here`)
+	r.Body = pzsvc.GetMockReadCloser("string goes here\n")
 	addAsynchJob(w, &r)
 	if *outInt == http.StatusOK {
 		t.Error(`TestAddAsynchJob: passed on what should have been an error return.`)
 	}
 	addAsynchJob(w, &r)
 	if *outInt != http.StatusOK {
-		t.Error(`TestAddAsynchJob: failed on what shoudl have been a good run.`)
+		t.Error(`TestAddAsynchJob: failed on what should have been a good run.`)
 	}
+
 }
 
 func TestGetAsynchStatus(t *testing.T) {
+	mockConnCount = 0
 	outputs := []string{
 		redisConvErrStr("Error: totally an error."),
-		redisConvStatus("Syntax Error"),
+		redisConvStatus("Syntax error"),
 		redisConvStatus("Pending")}
 	redisCli = makeMockRedisCli(outputs)
-	w, _, outInt := pzsvc.GetMockResponseWriter()
-	r := http.Request{}
-	r.Method = "POST"
-	r.Body = pzsvc.GetMockReadCloser(`string goes here`)
-	addAsynchJob(w, &r)
+	w, outStr, outInt := pzsvc.GetMockResponseWriter()
+	getAsynchStatus(w, "aaaa")
 	if *outInt == http.StatusOK {
-		t.Error(`TestAddAsynchJob: passed on what should have been an error return.`)
+		t.Error(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
 	}
-	addAsynchJob(w, &r)
+	getAsynchStatus(w, "aaaa")
+	if *outInt == http.StatusOK {
+		t.Error(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
+	}
+	getAsynchStatus(w, "aaaa")
 	if *outInt != http.StatusOK {
-		t.Error(`TestAddAsynchJob: failed on what shoudl have been a good run.`)
+		t.Error(`TestGetAsynchStatus: failed on what should have been a good run.  Outmsg: ` + *outStr)
 	}
 }
 
