@@ -193,15 +193,65 @@ func TestForassembleShorelines(t *testing.T) {
 
 }
 
-func TestForfindBestMatches(t *testing.T) {
+func TestForfindBestMatchesAndgetBestScene(t *testing.T) {
 	var line1, line2 *geos.Geometry
 	var err error
 	line1, err = geos.FromWKT("LINESTRING (0 0, 10 10, 20 20)")
-	line1, err = geos.FromWKT("LINESTRING (5 0, 15 15, 17 17)")
+	line2, err = geos.FromWKT("LINESTRING (5 0, 15 15, 17 17)")
 	var geoCollectionHolder *geojson.FeatureCollection
 	t.Log(err)
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[-34.5,-7.0],[-35.5,-7.0],[-35.5,-6.0],[-34.5,-6.0],[-34.5,-7.0]]]}}]}`))
 	findBestMatches(geoCollectionHolder, line1, line1)
 	findBestMatches(geoCollectionHolder, line1, line2)
+}
+
+func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
+
+	var geoCollectionHolder *geojson.FeatureCollection
+	var geoFeatureArray []*geojson.Feature
+	var line1, line2, poly1 *geos.Geometry
+	var tide1 tideOut
+
+	tide1.CurrTide = 3.13
+	tide1.MaxTide = 3.45
+	tide1.MinTide = 2.95
+	line1, _ = geos.FromWKT("LINESTRING (-34.9 6.5, -36.9 6.5, -35.5 7)")
+	line2, _ = geos.FromWKT("LINESTRING (5 0, 15 15, 17 17)")
+
+	poly1, _ = geos.FromWKT("POLYGON((-44.505615234376 -2.8564453125005, -32.288818359376 -2.9443359375005, -31.937255859376 -18.9404296875, -51.185302734376 -17.7978515625, -51.273193359376 -17.7099609375, -44.505615234376 -2.8564453125005))")
+
+	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{ "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.63671875, -21.4121622297254 ], [ -47.63671875, 0.5273363048115169 ], [ -31.904296874999996, 0.5273363048115169 ], [ -31.904296874999996, -21.4121622297254 ], [ -47.63671875, -21.4121622297254 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -57.52441406249999, -11.092165893501988 ], [ -57.52441406249999, 8.53756535080403 ], [ -37.3095703125, 8.53756535080403 ], [ -37.3095703125, -11.092165893501988 ], [ -57.52441406249999, -11.092165893501988 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -70.048828125, 16.97274101999902 ], [ -70.4443359375, 8.363692651835823 ], [ -65.5224609375, 7.18810087117902 ], [ -60.6005859375, 9.88227549342994 ], [ -56.865234375, 16.214674588248542 ], [ -62.84179687499999, 20.3034175184893 ], [ -70.048828125, 16.97274101999902 ] ] ] } } ] }`))
+	geoFeatureArray = geoCollectionHolder.Features
+	_ = clipFootprints(geoFeatureArray, line1)
+	_ = clipFootprints(geoFeatureArray, line2)
+	_ = clipFootprints(geoFeatureArray, poly1)
+	for _, feature := range geoFeatureArray {
+		updateSceneTide(feature, tide1)
+	}
+
+	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[-34.5,-7.0],[-35.5,-7.0],[-35.5,-6.0],[-34.5,-6.0],[-34.5,-7.0]]]}}]}`))
+	geoFeatureArray = geoCollectionHolder.Features
+	_ = clipFootprints(geoFeatureArray, line1)
+	_ = clipFootprints(geoFeatureArray, line2)
+	_ = clipFootprints(geoFeatureArray, poly1)
+	for _, feature := range geoFeatureArray {
+		updateSceneTide(feature, tide1)
+	}
+
+}
+func TestForselfClipAndtoTidesIn(t *testing.T) {
+
+	var geoCollectionHolder *geojson.FeatureCollection
+	var geoFeatureArray []*geojson.Feature
+
+	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{ "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.63671875, -21.4121622297254 ], [ -47.63671875, 0.5273363048115169 ], [ -31.904296874999996, 0.5273363048115169 ], [ -31.904296874999996, -21.4121622297254 ], [ -47.63671875, -21.4121622297254 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -57.52441406249999, -11.092165893501988 ], [ -57.52441406249999, 8.53756535080403 ], [ -37.3095703125, 8.53756535080403 ], [ -37.3095703125, -11.092165893501988 ], [ -57.52441406249999, -11.092165893501988 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -70.048828125, 16.97274101999902 ], [ -70.4443359375, 8.363692651835823 ], [ -65.5224609375, 7.18810087117902 ], [ -60.6005859375, 9.88227549342994 ], [ -56.865234375, 16.214674588248542 ], [ -62.84179687499999, 20.3034175184893 ], [ -70.048828125, 16.97274101999902 ] ] ] } } ] }`))
+	geoFeatureArray = geoCollectionHolder.Features
+	_ = selfClip(geoFeatureArray)
+	toTidesIn(geoFeatureArray)
+
+	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[-34.5,-7.0],[-35.5,-7.0],[-35.5,-6.0],[-34.5,-6.0],[-34.5,-7.0]]]}}]}`))
+	geoFeatureArray = geoCollectionHolder.Features
+	_ = selfClip(geoFeatureArray)
+	toTidesIn(geoFeatureArray)
 
 }
