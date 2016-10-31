@@ -225,18 +225,18 @@ func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
 	_ = clipFootprints(geoFeatureArray, line1)
 	_ = clipFootprints(geoFeatureArray, line2)
 	_ = clipFootprints(geoFeatureArray, poly1)
-	for _, feature := range geoFeatureArray {
-		updateSceneTide(feature, tide1)
-	}
+	//for _, feature := range geoFeatureArray {
+	//updateSceneTide(feature, tide1)
+	//}
 
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[-34.5,-7.0],[-35.5,-7.0],[-35.5,-6.0],[-34.5,-6.0],[-34.5,-7.0]]]}}]}`))
 	geoFeatureArray = geoCollectionHolder.Features
 	_ = clipFootprints(geoFeatureArray, line1)
 	_ = clipFootprints(geoFeatureArray, line2)
 	_ = clipFootprints(geoFeatureArray, poly1)
-	for _, feature := range geoFeatureArray {
-		updateSceneTide(feature, tide1)
-	}
+	//for _, feature := range geoFeatureArray {
+	//	updateSceneTide(feature, tide1)
+	//}
 
 }
 func TestForselfClipAndtoTidesIn(t *testing.T) {
