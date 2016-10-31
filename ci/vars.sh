@@ -1,2 +1,2 @@
 APP=bf-handle
-EXT=bin
+EXT=tgz
