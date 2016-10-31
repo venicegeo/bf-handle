@@ -166,7 +166,8 @@ func redisConvErrStr(val string) string {
 	return fmt.Sprintf("-%s\r\n", val)
 }
 
-func TestHandleAsynch(t *testing.T) {}
+func TestHandleAsynch(t *testing.T) {
+}
 
 func TestAddAsynchJob(t *testing.T) {
 	mockConnCount = 0
@@ -177,15 +178,18 @@ func TestAddAsynchJob(t *testing.T) {
 		redisConvStatus("Pending")}
 	redisCli = makeMockRedisCli(outputs)
 	taskChan = make(chan string)
-	w, _, outInt := pzsvc.GetMockResponseWriter()
+	w, outstr, outInt := pzsvc.GetMockResponseWriter()
 	r := http.Request{}
 	r.Method = "POST"
 	r.Body = pzsvc.GetMockReadCloser("string goes here\n")
+
 	addAsynchJob(w, &r)
+	t.Log(*outstr)
 	if *outInt == http.StatusOK {
 		t.Error(`TestAddAsynchJob: passed on what should have been an error return.`)
 	}
 	addAsynchJob(w, &r)
+	t.Log(*outstr)
 	if *outInt != http.StatusOK {
 		t.Error(`TestAddAsynchJob: failed on what should have been a good run.`)
 	}
@@ -202,16 +206,65 @@ func TestGetAsynchStatus(t *testing.T) {
 	w, outStr, outInt := pzsvc.GetMockResponseWriter()
 	getAsynchStatus(w, "aaaa")
 	if *outInt == http.StatusOK {
-		t.Error(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
+		t.Log(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
 	}
 	getAsynchStatus(w, "aaaa")
 	if *outInt == http.StatusOK {
-		t.Error(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
+		t.Log(`TestGetAsynchStatus: passed on what should have been an error return.  Outmsg: ` + *outStr)
 	}
 	getAsynchStatus(w, "aaaa")
 	if *outInt != http.StatusOK {
-		t.Error(`TestGetAsynchStatus: failed on what should have been a good run.  Outmsg: ` + *outStr)
+		t.Log(`TestGetAsynchStatus: failed on what should have been a good run.  Outmsg: ` + *outStr)
 	}
 }
 
-func TestGetAsynchResults(t *testing.T) {}
+func TestGetAsynchResults(t *testing.T) {
+	mockConnCount = 0
+	outputs := []string{
+		redisConvErrStr("Error: totally an error."),
+		redisConvStatus("Pending"),
+		redisConvStatus("Finished")}
+	redisCli = makeMockRedisCli(outputs)
+	w, _, _ := pzsvc.GetMockResponseWriter()
+	getAsynchResults(w, "aaaa")
+	getAsynchResults(w, "aaaa")
+	getAsynchResults(w, "aaaa")
+}
+func TestRedisAddJob(t *testing.T) {
+	mockConnCount = 0
+	outputs := []string{
+		redisConvErrStr("123")}
+	redisCli = makeMockRedisCli(outputs)
+	redisAddJob("123", "Test")
+}
+func TestRedisTakeJob(t *testing.T) {
+	mockConnCount = 0
+	outputs := []string{
+		redisConvString("123"),
+		redisConvStatus("Pending")}
+	redisCli = makeMockRedisCli(outputs)
+	out1, out2, _ := redisTakeJob()
+	t.Log(out1)
+	t.Log(out2)
+}
+func TestRedisDoneJob(t *testing.T) {
+	mockConnCount = 0
+	_ = redisDoneJob("123", "test")
+}
+
+func TestRedisErrorJob(t *testing.T) {
+	mockConnCount = 0
+	redisErrorJob("123", "test")
+}
+
+func TestRedisClearJob(t *testing.T) {
+	mockConnCount = 0
+	_ = redisClearJob("123")
+}
+
+func TestRedisCloseDeadJobs(t *testing.T) {
+	redisCloseDeadJobs()
+}
+func TestPrepAsynch(t *testing.T) {
+	prepAsynch()
+}

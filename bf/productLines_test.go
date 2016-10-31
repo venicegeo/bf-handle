@@ -15,7 +15,7 @@
 package bf
 
 import (
-	//"encoding/json"
+	"encoding/json"
 	//"errors"
 	//"fmt"
 	//"math"
@@ -68,7 +68,7 @@ func TestGetProductLines(t *testing.T) {
 		t.Error(`TestExecute: passed on what should have been a json failure.`)
 	}
 
-	testBodyStr = `{"eventTypeId":"bbbb","serviceId":"","createdBy":"","pzAuthToken":"aaa","pzAddr":"https://pz-gateway.io"}`
+	testBodyStr = `{"eventTypeId":"bbbb","serviceId":"","createdBy":"","pzAuthToken":"49e2386b-b50b-491d-9949-37abcfc55264","pzAddr":"https://pz-gateway.geointservices.io"}`
 	r.Body = pzsvc.GetMockReadCloser(testBodyStr)
 	cliOuts := []string{}
 
@@ -83,13 +83,11 @@ func TestExtractTrigReqStruct(t *testing.T) {
 
 	var triggerHolder pzsvc.Trigger
 
-	triggerHolder.Name = "triggerName"
-	triggerHolder.Enabled = true
-	triggerHolder.EventTypeID = "single"
-	triggerHolder.CreatedBy = "me"
-	triggerHolder.CreatedOn = "1/1/2016"
-	triggerHolder.TriggerID = "123"
+	json.Unmarshal([]byte(`{ "triggerId": "373e7f24-9bf2-4879-8dda-7d232f33fb7a", "name": "CI Testing Trigger", "eventTypeId": "34fbdba3-f638-43c6-8ff8-189b118165a1", "condition": { "query": { "bool": { "must": [ { "match": { "data~1476820914~dataType": "raster" } } ] } } }, "job": { "createdBy": "citester", "jobType": { "data": { "dataInputs": { "test": { "content": {}, "mimeType": "application/json", "type": "body" } }, "dataOutput": [ { "content": "filler text", "mimeType": "application/json", "type": "text" } ], "serviceId": "9998465f-644e-4fe1-bc78-49c68ec22173" }, "type": "execute-service" } }, "percolationId": "373e7f24-9bf2-4879-8dda-7d232f33fb7a", "createdBy": "citester", "createdOn": "2016-10-18T20:01:57.535270204Z", "enabled": true }`), triggerHolder)
 
+	_, _ = extractTrigReqStruct(triggerHolder)
+
+	json.Unmarshal([]byte(`{ "triggerId": "642594ee-7c8a-4061-84bf-b2d1e12e6b9b", "name": "CI Testing Trigger", "eventTypeId": "321733dd-a7a5-4699-847e-3bce0bf78ec0", "condition": { "query": { "bool": { "must": [ { "match": { "data~1477426129~dataType": "raster" } } ] } } }, "job": { "createdBy": "citester", "jobType": { "data": { "dataInputs": { "test": { "content": "{ \"log\": \"Received event with type $dataType\" }", "mimeType": "application/json", "type": "body" } }, "dataOutput": [ { "content": "filler text", "mimeType": "application/json", "type": "text" } ], "serviceId": "ad0fc512-bd0b-4bb2-80f3-d29ea7b948a4" }, "type": "execute-service" } }, "percolationId": "642594ee-7c8a-4061-84bf-b2d1e12e6b9b", "createdBy": "citester", "createdOn": "2016-10-25T20:08:53.950302328Z", "enabled": true }`), triggerHolder)
 	_, _ = extractTrigReqStruct(triggerHolder)
 }
 func TestToString(t *testing.T) {
