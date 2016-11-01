@@ -49,9 +49,9 @@ wc -l $root/lint.txt
 
 
 cd $root
-cp $GOPATH/bin/$APP .
+cp $GOPATH/bin/$APP ./$APP.bin
 tar cvzf $APP.$EXT \
-    $APP \
+    $APP.bin \
     bf-handle.cov \
     lint.txt
 tar tzf $APP.$EXT
