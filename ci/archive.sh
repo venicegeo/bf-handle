@@ -21,10 +21,11 @@ gometalinter --install
 go get -v github.com/venicegeo/bf-handle/...
 
 
-cd $GOPATH/src/github.com/venicegeo/bf-handle
+cd $GOPATH/src/github.com/venicegeo/bf-handle/bf
 
 # run unit tests w/ coverage collection
 go test -v -coverprofile=$root/bf-handle.cov github.com/venicegeo/bf-handle/bf
+
 
 # lint
 gometalinter \
@@ -44,12 +45,14 @@ gometalinter \
 wc -l $root/lint.txt
 
 # gather some data about the repo
-src=$GOPATH/bin/bf-handle
+
+
 
 cd $root
 cp $GOPATH/bin/$APP .
 tar cvzf $APP.$EXT \
     $APP \
     bf-handle.cov \
-    lint.txt \
+    lint.txt
 tar tzf $APP.$EXT
+
