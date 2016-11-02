@@ -68,7 +68,7 @@ func TestGetProductLines(t *testing.T) {
 		t.Error(`TestExecute: passed on what should have been a json failure.`)
 	}
 
-	testBodyStr = `{"eventTypeId":"bbbb","serviceId":"","createdBy":"","pzAuthToken":"49e2386b-b50b-491d-9949-37abcfc55264","pzAddr":"https://pz-gateway.geointservices.io"}`
+	testBodyStr = `{"eventTypeId":"bbbb","serviceId":"123","createdBy":"TommyG","pzAuthToken":"49e2386b-b50b-491d-9949-37abcfc55264","pzAddr":"https://pz-gateway.geointservices.io"}`
 	r.Body = pzsvc.GetMockReadCloser(testBodyStr)
 	cliOuts := []string{}
 
@@ -77,6 +77,15 @@ func TestGetProductLines(t *testing.T) {
 	if *outInt >= 300 || *outInt < 200 {
 		t.Error(`TestGetProductLines: failed on what should have been a good run.  Error: ` + *outStr)
 	}
+
+	testBodyStr = `{"name":"bf-handle test trigger","enabled":true,"eventTypeId":"bbbbb","condition":{"query":{"bool":{"filter":[{"range":{"data.cloudCover":{"lte":10}}},{"range":{"data.minx":{"lte":30}}},{"range":{"data.maxx":{"gte":0}}},{"range":{"data.miny":{"lte":30}}},{"range":{"data.maxy":{"gte":0}}},{"range":{"data.acquiredDate":{"gte":"2016-08-29","format":"yyyy-MM-dd'T'HH:mm:ssZZ"}}}]}}},"job":{"jobType":{"type":"execute-service","data":{"serviceId":"ccccc","dataInputs":{"body":{"content":"{\"algoType\":\"pzsvc-ossim\",\"svcURL\":\"https://pzsvc-ossim.io/execute\",\"tideURL\":\"https://tideprediction.io/\",\"metaDataURL\":\"$link\",\"bands\":[\"coastal\",\"swir1\"],\"pzAuthToken\":\"aaa\",\"pzAddr\":\"https://pz-gateway.io\",\"dbAuthToken\":\"aaaa\",\"lGroupId\":\"\",\"jobName\":\"\"}","type":"body","mimeType":"application/json"}},"dataOutput":[{"type":"text","mimeType":"application/json"}]}}}}`
+
+	r.Body = pzsvc.GetMockReadCloser(testBodyStr)
+	cliOuts = []string{}
+
+	pzsvc.SetMockClient(cliOuts, 200)
+	GetProductLines(w, &r)
+
 }
 
 func TestExtractTrigReqStruct(t *testing.T) {
