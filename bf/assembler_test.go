@@ -220,8 +220,6 @@ func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
 
 	poly1, _ = geos.FromWKT("POLYGON((-44.505615234376 -2.8564453125005, -32.288818359376 -2.9443359375005, -31.937255859376 -18.9404296875, -51.185302734376 -17.7978515625, -51.273193359376 -17.7099609375, -44.505615234376 -2.8564453125005))")
 
-	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{ "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.63671875, -21.4121622297254 ], [ -47.63671875, 0.5273363048115169 ], [ -31.904296874999996, 0.5273363048115169 ], [ -31.904296874999996, -21.4121622297254 ], [ -47.63671875, -21.4121622297254 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -57.52441406249999, -11.092165893501988 ], [ -57.52441406249999, 8.53756535080403 ], [ -37.3095703125, 8.53756535080403 ], [ -37.3095703125, -11.092165893501988 ], [ -57.52441406249999, -11.092165893501988 ] ] ] } }, { "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [ [ [ -70.048828125, 16.97274101999902 ], [ -70.4443359375, 8.363692651835823 ], [ -65.5224609375, 7.18810087117902 ], [ -60.6005859375, 9.88227549342994 ], [ -56.865234375, 16.214674588248542 ], [ -62.84179687499999, 20.3034175184893 ], [ -70.048828125, 16.97274101999902 ] ] ] } } ] }`))
-
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{ "type": "FeatureCollection", "features": [ {"type":"Feature","geometry":{"coordinates":[[-41.68380384,-3.86901559],[-41.68344951,-3.86733807],[-41.68361042,-3.86726774],[-41.68384764,-3.86719616],[-41.68413582,-3.86716065],[-41.68444963,-3.86719857],[-41.68476372,-3.86734723],[-41.68505276,-3.86764398],[-41.68529141,-3.86812615],[-41.68537007,-3.86836772],[-41.68542289,-3.8685737],[-41.68544916,-3.86875115],[-41.68544817,-3.86890711],[-41.6854192,-3.86904862],[-41.68536156,-3.86918273],[-41.68527452,-3.86931649],[-41.68515738,-3.86945693],[-41.68495458,-3.86964114],[-41.68475013,-3.86975328],[-41.68454967,-3.8697952],[-41.68435881,-3.86976873],[-41.68418317,-3.86967571],[-41.68402839,-3.86951795],[-41.68390007,-3.8692973],[-41.68380384,-3.86901559]],"type":"LineString"},"properties":{"24hrMaxTide":"4.272558868170382","24hrMinTide":"2.4257490639311676","algoCmd":"ossim-cli shoreline --image img1.TIF,img2.TIF --projection geo-scaled --prop 24hrMinTide:2.4257490639311676 --prop resolution:30 --prop classification:Unclassified --prop dataUsage:Not_to_be_used_for_navigational_or_targeting_purposes. --prop sensorName:Landsat8 --prop 24hrMaxTide:4.272558868170382 --prop currentTide:3.4136017245233523 --prop sourceID:landsat:LC82190622016285LGN00 --prop dateTimeCollect:2016-10-11T12:59:05.157475+00:00 shoreline.geojson","algoName":"BF_Algo_NDWI","algoProcTime":"20161031.133058.4026","algoVersion":"0.0","classification":"Unclassified","currentTide":"3.4136017245233523","dataUsage":"Not_to_be_used_for_navigational_or_targeting_purposes.","dateTimeCollect":"2016-10-11T12:59:05.157475+00:00","resolution":"30","sensorName":"Landsat8","sourceID":"landsat:LC82190622016285LGN00"}} ] }`))
 
 	geoFeatureArray = geoCollectionHolder.Features
@@ -229,9 +227,9 @@ func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
 	_ = clipFootprints(geoFeatureArray, line2)
 	_ = clipFootprints(geoFeatureArray, poly1)
 
-	for _, feature := range geoFeatureArray {
+	/*for _, feature := range geoFeatureArray {
 		updateSceneTide(feature, tide1)
-	}
+	}*/
 
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type":"Feature","geometry":{"coordinates":[[-41.68380384,-3.86901559],[-41.68344951,-3.86733807],[-41.68361042,-3.86726774],[-41.68384764,-3.86719616],[-41.68413582,-3.86716065],[-41.68444963,-3.86719857],[-41.68476372,-3.86734723],[-41.68505276,-3.86764398],[-41.68529141,-3.86812615],[-41.68537007,-3.86836772],[-41.68542289,-3.8685737],[-41.68544916,-3.86875115],[-41.68544817,-3.86890711],[-41.6854192,-3.86904862],[-41.68536156,-3.86918273],[-41.68527452,-3.86931649],[-41.68515738,-3.86945693],[-41.68495458,-3.86964114],[-41.68475013,-3.86975328],[-41.68454967,-3.8697952],[-41.68435881,-3.86976873],[-41.68418317,-3.86967571],[-41.68402839,-3.86951795],[-41.68390007,-3.8692973],[-41.68380384,-3.86901559]],"type":"LineString"},"properties":{"24hrMaxTide":"4.272558868170382","24hrMinTide":"2.4257490639311676","algoCmd":"ossim-cli shoreline --image img1.TIF,img2.TIF --projection geo-scaled --prop 24hrMinTide:2.4257490639311676 --prop resolution:30 --prop classification:Unclassified --prop dataUsage:Not_to_be_used_for_navigational_or_targeting_purposes. --prop sensorName:Landsat8 --prop 24hrMaxTide:4.272558868170382 --prop currentTide:3.4136017245233523 --prop sourceID:landsat:LC82190622016285LGN00 --prop dateTimeCollect:2016-10-11T12:59:05.157475+00:00 shoreline.geojson","algoName":"BF_Algo_NDWI","algoProcTime":"20161031.133058.4026","algoVersion":"0.0","classification":"Unclassified","currentTide":"3.4136017245233523","dataUsage":"Not_to_be_used_for_navigational_or_targeting_purposes.","dateTimeCollect":"2016-10-11T12:59:05.157475+00:00","resolution":"30","sensorName":"Landsat8","sourceID":"landsat:LC82190622016285LGN00"}}]}`))
 
@@ -241,9 +239,9 @@ func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
 
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[-34.5,-7.0],[-35.5,-7.0],[-35.5,-6.0],[-34.5,-6.0],[-34.5,-7.0]]]}}]}`))
 
-	for _, feature := range geoFeatureArray {
-		updateSceneTide(feature, tide1)
-	}
+	//for _, feature := range geoFeatureArray {
+	//	updateSceneTide(feature, tide1)
+	//}
 
 	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type":"Feature","geometry":{"coordinates":[[-41.68380384,-3.86901559],[-41.68344951,-3.86733807],[-41.68361042,-3.86726774],[-41.68384764,-3.86719616],[-41.68413582,-3.86716065],[-41.68444963,-3.86719857],[-41.68476372,-3.86734723],[-41.68505276,-3.86764398],[-41.68529141,-3.86812615],[-41.68537007,-3.86836772],[-41.68542289,-3.8685737],[-41.68544916,-3.86875115],[-41.68544817,-3.86890711],[-41.6854192,-3.86904862],[-41.68536156,-3.86918273],[-41.68527452,-3.86931649],[-41.68515738,-3.86945693],[-41.68495458,-3.86964114],[-41.68475013,-3.86975328],[-41.68454967,-3.8697952],[-41.68435881,-3.86976873],[-41.68418317,-3.86967571],[-41.68402839,-3.86951795],[-41.68390007,-3.8692973],[-41.68380384,-3.86901559]],"type":"LineString"},"properties":{"24hrMaxTide":"4.272558868170382","24hrMinTide":"2.4257490639311676","algoCmd":"ossim-cli shoreline --image img1.TIF,img2.TIF --projection geo-scaled --prop 24hrMinTide:2.4257490639311676 --prop resolution:30 --prop classification:Unclassified --prop dataUsage:Not_to_be_used_for_navigational_or_targeting_purposes. --prop sensorName:Landsat8 --prop 24hrMaxTide:4.272558868170382 --prop currentTide:3.4136017245233523 --prop sourceID:landsat:LC82190622016285LGN00 --prop dateTimeCollect:2016-10-11T12:59:05.157475+00:00 shoreline.geojson","algoName":"BF_Algo_NDWI","algoProcTime":"20161031.133058.4026","algoVersion":"0.0","classification":"Unclassified","currentTide":"3.4136017245233523","dataUsage":"Not_to_be_used_for_navigational_or_targeting_purposes.","dateTimeCollect":"2016-10-11T12:59:05.157475+00:00","resolution":"30","sensorName":"Landsat8","sourceID":"landsat:LC82190622016285LGN00"}}]}`))
 
@@ -252,17 +250,9 @@ func TestForclipFootprintsAndupdateSceneTide(t *testing.T) {
 	_ = clipFootprints(geoFeatureArray, line2)
 	_ = clipFootprints(geoFeatureArray, poly1)
 
-	for _, feature := range geoFeatureArray {
-		updateSceneTide(feature, tide1)
-	}
-
 	//for _, feature := range geoFeatureArray {
 	//	updateSceneTide(feature, tide1)
 	//}
-
-	for _, feature := range geoFeatureArray {
-		updateSceneTide(feature, tide1)
-	}
 
 }
 func TestForselfClipAndtoTidesIn(t *testing.T) {
