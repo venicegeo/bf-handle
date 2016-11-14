@@ -163,10 +163,6 @@ Output format:
 productLines  *       // this is a list of JSON objects, of the '/newProductLines' input format 
 ```
 
-### bf-handle/eventTypes
-
-This is a simple endpoint that returns all known Event Types as a JSON object. When an event type is needed, you provide a root and the system does some version checking, adding a new Event Type if needed.
-
 ### bf-handle/resultsByScene
 
 The API for this endpoint is temporary.  It is likely to be modified within the next month to improve information output.  Currently, it takes a pzsvc-image-catalog sceneId, and returns a list of all jobs that have been run against that scene in the form of Pz DataIds.
